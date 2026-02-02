@@ -20,15 +20,15 @@ input bool     InpAvoidAsianSession = true;    // Avoid Asian Session
 
 //=== Bollinger Bands Settings ===
 input group "=== Bollinger Bands ==="
-input int      InpBB_Period = 20;              // BB Period
+input int      InpBB_Period = 8;               // BB Period
 input double   InpBB_Deviation = 2.0;          // BB Standard Deviation
 input ENUM_APPLIED_PRICE InpBB_Price = PRICE_CLOSE;  // BB Applied Price
 
 //=== Trend Filter ===
 input group "=== Trend Filter ==="
-input int      InpEMA_Filter = 50;             // Trend Filter EMA Period
-input bool     InpUseTrendFilter = true;       // Use EMA Trend Filter
-input ENUM_TIMEFRAMES InpTimeframe = PERIOD_M5; // Timeframe
+input int      InpEMA_Filter = 5;              // Trend Filter EMA Period
+input bool     InpUseTrendFilter = false;      // Use EMA Trend Filter
+input ENUM_TIMEFRAMES InpTimeframe = PERIOD_M1; // Timeframe
 
 //=== Entry Settings ===
 input group "=== Entry Confirmation ==="
@@ -37,7 +37,7 @@ input double   InpMinBandDistance = 0.0;       // Min Distance to Band (0=disabl
 
 //=== Risk Management ===
 input group "=== Risk Management ==="
-input double   InpRiskPercent = 1.0;           // Risk Per Trade (%)
+input double   InpRiskPercent = 0.8;           // Risk Per Trade (%)
 input int      InpStopLossPips = 5;            // Stop Loss Beyond Band (pips)
 input bool     InpUseBBMiddleTP = true;        // Use BB Middle as Take Profit
 input int      InpFixedTPPips = 10;            // Fixed TP if not using BB Middle (pips)
@@ -45,8 +45,8 @@ input double   InpMinRiskReward = 1.5;         // Minimum Risk:Reward Ratio
 
 //=== Trade Limits ===
 input group "=== Trade Limits ==="
-input int      InpMaxTradesPerSession = 5;     // Max Trades Per Session
-input int      InpMaxLossesPerSession = 3;     // Max Losing Trades Per Session
+input int      InpMaxTradesPerSession = 100;   // Max Trades Per Session
+input int      InpMaxLossesPerSession = 2;     // Max Losing Trades Per Session
 input int      InpMagicNumber = 123456;        // Magic Number
 input bool     InpDebugMode = true;            // Debug Mode (verbose logging)
 
