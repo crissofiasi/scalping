@@ -112,23 +112,10 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   //--- Check if new bar formed
-   static datetime lastBarTime = 0;
-   datetime currentBarTime = iTime(_Symbol, InpEntryTimeframe, 0);
-   
-   if(currentBarTime == lastBarTime)
-      return;
-   
-   lastBarTime = currentBarTime;
-   
    //--- Reset daily trade counter
    ResetDailyTradeCounter();
    
-   //--- Check trading conditions
-   if(!IsTradingAllowed())
-      return;
-   
-   //--- Update indicator values
+   //--- Update indicator values on every tick
    if(!UpdateIndicators())
       return;
    
@@ -138,6 +125,10 @@ void OnTick()
       ManageOpenPosition();
       return;
    }
+   
+   //--- Check trading conditions
+   if(!IsTradingAllowed())
+      return;
    
    //--- Check for entry signals
    CheckForEntry();
@@ -150,7 +141,17 @@ bool IsTradingAllowed()
 {
    //--- Check trading hours
    if(!IsWithinTradingHours())
+   {
+      static datetime lastPrintTime = 0;
+      if(TimeCurrent() - lastPrintTime > 3600) // Print once per hour
+      {
+         MqlDateTime dt;
+         TimeGMT(dt);
+         Print("Outside trading hours. Current GMT: ", dt.hour, ":", dt.min);
+         lastPrintTime = TimeCurrent();
+      }
       return false;
+   }
    
    //--- Check max trades limit
    if(tradesCountToday >= InpMaxTradesPerSession)
@@ -167,6 +168,12 @@ bool IsTradingAllowed()
    //--- Check ATR filter
    if(InpUseATRFilter && atr_current < InpATR_MinThreshold)
    {
+      static datetime lastATRPrint = 0;
+      if(TimeCurrent() - lastATRPrint > 300) // Print every 5 minutes
+      {
+         Print("ATR too low: ", atr_current, " < ", InpATR_MinThreshold);
+         lastATRPrint = TimeCurrent();
+      }
       return false;
    }
    
@@ -237,26 +244,45 @@ bool UpdateIndicators()
 //+------------------------------------------------------------------+
 void CheckForEntry()
 {
-   double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double price_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double price_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   
+   //--- Debug logging (remove after testing)
+   static datetime lastDebugTime = 0;
+   if(TimeCurrent() - lastDebugTime > 60) // Print every minute
+   {
+      Print("=== Signal Check ===");
+      Print("EMA Fast: ", ema_fast_current, " (prev: ", ema_fast_previous, ")");
+      Print("EMA Slow: ", ema_slow_current, " (prev: ", ema_slow_previous, ")");
+      Print("EMA Filter: ", ema_filter_current, " | Price: ", price_bid);
+      Print("ATR: ", atr_current);
+      lastDebugTime = TimeCurrent();
+   }
    
    //--- Bullish Setup
-   bool bullishCrossover = (ema_fast_previous <= ema_slow_previous) && 
+   bool bullishCrossover = (ema_fast_previous < ema_slow_previous) && 
                            (ema_fast_current > ema_slow_current);
-   bool bullishFilter = price > ema_filter_current;
+   bool bullishFilter = price_bid > ema_filter_current;
    
    if(bullishCrossover && bullishFilter)
    {
+      Print("*** BULLISH SIGNAL DETECTED ***");
+      Print("Crossover: Fast crossed above Slow");
+      Print("Filter: Price ", price_bid, " > EMA50 ", ema_filter_current);
       OpenTrade(ORDER_TYPE_BUY);
       return;
    }
    
    //--- Bearish Setup
-   bool bearishCrossover = (ema_fast_previous >= ema_slow_previous) && 
+   bool bearishCrossover = (ema_fast_previous > ema_slow_previous) && 
                            (ema_fast_current < ema_slow_current);
-   bool bearishFilter = price < ema_filter_current;
+   bool bearishFilter = price_bid < ema_filter_current;
    
    if(bearishCrossover && bearishFilter)
    {
+      Print("*** BEARISH SIGNAL DETECTED ***");
+      Print("Crossover: Fast crossed below Slow");
+      Print("Filter: Price ", price_bid, " < EMA50 ", ema_filter_current);
       OpenTrade(ORDER_TYPE_SELL);
       return;
    }
