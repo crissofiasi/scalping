@@ -47,6 +47,8 @@ input double   InpMinRiskReward = 1.5;         // Minimum Risk:Reward Ratio
 input group "=== Trade Limits ==="
 input int      InpMaxTradesPerSession = 100;   // Max Trades Per Session
 input int      InpMaxLossesPerSession = 2;     // Max Losing Trades Per Session
+input double   InpMaxWeeklyDrawdownPercent = 5.0;  // Max Weekly Drawdown (%)
+input double   InpMaxMonthlyDrawdownPercent = 10.0; // Max Monthly Drawdown (%)
 input int      InpMagicNumber = 123456;        // Magic Number
 input bool     InpDebugMode = true;            // Debug Mode (verbose logging)
 
@@ -61,6 +63,12 @@ int tradesCountToday = 0;
 int lossesCountToday = 0;
 datetime lastTradeDate = 0;
 datetime lastCheckTime = 0;
+
+// Drawdown tracking
+double weeklyStartBalance = 0;
+double monthlyStartBalance = 0;
+datetime lastWeekReset = 0;
+datetime lastMonthReset = 0;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -94,7 +102,15 @@ int OnInit()
    Print("Risk per trade: ", InpRiskPercent, "%");
    Print("Max trades per session: ", InpMaxTradesPerSession);
    Print("Take Profit: ", InpUseBBMiddleTP ? "BB Middle Band" : IntegerToString(InpFixedTPPips) + " pips");
+   Print("Max Weekly Drawdown: ", InpMaxWeeklyDrawdownPercent, "%");
+   Print("Max Monthly Drawdown: ", InpMaxMonthlyDrawdownPercent, "%");
    Print("========================================");
+   
+   //--- Initialize drawdown tracking
+   weeklyStartBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   monthlyStartBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   lastWeekReset = TimeCurrent();
+   lastMonthReset = TimeCurrent();
    
    return(INIT_SUCCEEDED);
 }
@@ -181,6 +197,10 @@ bool IsTradingAllowed()
       }
       return false;
    }
+   
+   //--- Check weekly drawdown limit
+   if(!CheckDrawdownLimits())
+      return false;
    
    return true;
 }
@@ -511,6 +531,74 @@ void CheckClosedPositions()
    }
    
    lastProcessedDeals = totalDeals;
+}
+
+//+------------------------------------------------------------------+
+//| Check weekly and monthly drawdown limits                         |
+//+------------------------------------------------------------------+
+bool CheckDrawdownLimits()
+{
+   double currentBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   
+   //--- Reset weekly tracking on new week (Monday)
+   MqlDateTime dt;
+   TimeCurrent(dt);
+   datetime currentWeekStart = iTime(_Symbol, PERIOD_W1, 0);
+   
+   if(currentWeekStart != lastWeekReset)
+   {
+      weeklyStartBalance = currentBalance;
+      lastWeekReset = currentWeekStart;
+      if(InpDebugMode)
+         Print("New week started - Weekly balance reset to: ", weeklyStartBalance);
+   }
+   
+   //--- Reset monthly tracking on new month
+   datetime currentMonthStart = iTime(_Symbol, PERIOD_MN1, 0);
+   
+   if(currentMonthStart != lastMonthReset)
+   {
+      monthlyStartBalance = currentBalance;
+      lastMonthReset = currentMonthStart;
+      if(InpDebugMode)
+         Print("New month started - Monthly balance reset to: ", monthlyStartBalance);
+   }
+   
+   //--- Calculate drawdowns
+   double weeklyDrawdown = ((weeklyStartBalance - currentBalance) / weeklyStartBalance) * 100.0;
+   double monthlyDrawdown = ((monthlyStartBalance - currentBalance) / monthlyStartBalance) * 100.0;
+   
+   //--- Check weekly drawdown limit
+   if(weeklyDrawdown >= InpMaxWeeklyDrawdownPercent)
+   {
+      static bool printedWeeklyDD = false;
+      if(!printedWeeklyDD)
+      {
+         Print("*** WEEKLY DRAWDOWN LIMIT REACHED ***");
+         Print("Weekly DD: ", DoubleToString(weeklyDrawdown, 2), "% (Max: ", InpMaxWeeklyDrawdownPercent, "%)");
+         Print("Start Balance: ", weeklyStartBalance, " Current: ", currentBalance);
+         Print("Trading stopped for this week");
+         printedWeeklyDD = true;
+      }
+      return false;
+   }
+   
+   //--- Check monthly drawdown limit
+   if(monthlyDrawdown >= InpMaxMonthlyDrawdownPercent)
+   {
+      static bool printedMonthlyDD = false;
+      if(!printedMonthlyDD)
+      {
+         Print("*** MONTHLY DRAWDOWN LIMIT REACHED ***");
+         Print("Monthly DD: ", DoubleToString(monthlyDrawdown, 2), "% (Max: ", InpMaxMonthlyDrawdownPercent, "%)");
+         Print("Start Balance: ", monthlyStartBalance, " Current: ", currentBalance);
+         Print("Trading stopped for this month");
+         printedMonthlyDD = true;
+      }
+      return false;
+   }
+   
+   return true;
 }
 
 //+------------------------------------------------------------------+
