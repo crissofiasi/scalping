@@ -135,10 +135,10 @@ void OnTick()
    //--- Check for entry signals
    CheckForEntry();
 }
+
 //+------------------------------------------------------------------+
 //| Check if trading is allowed                                      |
 //+------------------------------------------------------------------+
-bool IsTradingAllowed()----------------------------------------------+
 bool IsTradingAllowed()
 {
    //--- Check trading hours
@@ -168,7 +168,9 @@ bool IsTradingAllowed()
    }
    
    return true;
-}/+------------------------------------------------------------------+
+}
+
+//+------------------------------------------------------------------+
 //| Check if within trading hours                                    |
 //+------------------------------------------------------------------+
 bool IsWithinTradingHours()
@@ -191,20 +193,6 @@ bool IsWithinTradingHours()
    return true;
 }
 
-//+------------------------------------------------------------------+
-//| Update indicator values                                          |
-//+------------------------------------------------------------------+
-bool UpdateIndicators()
-{
-   double ema_fast_array[];
-   double ema_slow_array[];
-   double ema_filter_array[];
-   double atr_array[];
-   
-   ArraySetAsSeries(ema_fast_array, true);
-   ArraySetAsSeries(ema_slow_array, true);
-   ArraySetAsSeries(ema_filter_array, true);
-   ArraySetAsSeries(atr_array, true);
 //+------------------------------------------------------------------+
 //| Update indicator values                                          |
 //+------------------------------------------------------------------+
@@ -237,8 +225,8 @@ bool UpdateIndicators()
    ema_filter_current = ema_filter_array[0];
    
    return true;
-}     Print("=== Signal Check ===");
-      Print("EMA Fast: ", ema_fast_current, " (prev: ", ema_fast_previous, ")");
+}
+
 //+------------------------------------------------------------------+
 //| Check for entry signals                                          |
 //+------------------------------------------------------------------+
@@ -302,7 +290,21 @@ void CheckForEntry()
       OpenTrade(ORDER_TYPE_SELL);
       return;
    }
-}  
+}
+
+//+------------------------------------------------------------------+
+//| Open a trade                                                      |
+//+------------------------------------------------------------------+
+void OpenTrade(ENUM_ORDER_TYPE orderType)
+{
+   double price = (orderType == ORDER_TYPE_BUY) ? 
+                  SymbolInfoDouble(_Symbol, SYMBOL_ASK) : 
+                  SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   
+   //--- Calculate stop loss and take profit
+   double sl = CalculateStopLoss(orderType, price);
+   double tp = CalculateTakeProfit(orderType, price);
+   
    //--- Validate risk:reward ratio
    double slDistance = MathAbs(price - sl);
    double tpDistance = MathAbs(tp - price);
@@ -328,7 +330,7 @@ void CheckForEntry()
    lotSize = NormalizeDouble(lotSize, 2);
    
    //--- Execute trade
-   string comment = StringFormat("Scalp_%s", (orderType == ORDER_TYPE_BUY) ? "BUY" : "SELL");
+   string comment = StringFormat("BB_Bounce_%s", (orderType == ORDER_TYPE_BUY) ? "BUY" : "SELL");
    
    if(orderType == ORDER_TYPE_BUY)
    {
@@ -342,6 +344,20 @@ void CheckForEntry()
          Print("BUY order failed: ", trade.ResultRetcodeDescription());
       }
    }
+   else
+   {
+      if(trade.Sell(lotSize, _Symbol, price, sl, tp, comment))
+      {
+         Print("SELL order opened: Lot=", lotSize, " SL=", sl, " TP=", tp);
+         tradesCountToday++;
+      }
+      else
+      {
+         Print("SELL order failed: ", trade.ResultRetcodeDescription());
+      }
+   }
+}
+
 //+------------------------------------------------------------------+
 //| Calculate stop loss                                              |
 //+------------------------------------------------------------------+
@@ -361,7 +377,7 @@ double CalculateStopLoss(ENUM_ORDER_TYPE orderType, double entryPrice)
       return bb_upper + slDistance;
    }
 }
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+
 //+------------------------------------------------------------------+
 //| Calculate take profit                                            |
 //+------------------------------------------------------------------+
@@ -383,20 +399,6 @@ double CalculateTakeProfit(ENUM_ORDER_TYPE orderType, double entryPrice)
       else
          return entryPrice - tpDistance;
    }
-}ouble CalculateTakeProfit(ENUM_ORDER_TYPE orderType, double entryPrice)
-{
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   
-   //--- Use ATR-based take profit (adaptive within min-max range)
-   double atrPips = atr_current / point / 10; // Convert to pips
-   int tpPips = (int)MathMax(InpTakeProfit_Min, MathMin(atrPips * 1.5, InpTakeProfit_Max));
-   
-   double tpDistance = tpPips * 10 * point; // Convert pips to price
-   
-   if(orderType == ORDER_TYPE_BUY)
-      return entryPrice + tpDistance;
-   else
-      return entryPrice - tpDistance;
 }
 
 //+------------------------------------------------------------------+
