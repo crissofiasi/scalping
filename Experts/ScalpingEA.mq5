@@ -61,7 +61,6 @@ int tradesCountToday = 0;
 int lossesCountToday = 0;
 datetime lastTradeDate = 0;
 datetime lastCheckTime = 0;
-datetime lastTradeDate = 0;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -138,8 +137,6 @@ void OnTick()
    
    //--- Check for entry signals
    CheckForEntry();
-}  //--- Check for entry signals
-   CheckForEntry();
 }
 
 //+------------------------------------------------------------------+
@@ -156,6 +153,11 @@ bool IsTradingAllowed()
          MqlDateTime dt;
          TimeGMT(dt);
          Print("Outside trading hours. Current GMT: ", dt.hour, ":", dt.min);
+         lastPrintTime = TimeCurrent();
+      }
+      return false;
+   }
+   
    //--- Check max trades limit
    if(tradesCountToday >= InpMaxTradesPerSession)
    {
@@ -177,11 +179,6 @@ bool IsTradingAllowed()
          Print("Max losses per session reached: ", lossesCountToday, " - Trading stopped for today");
          printedLossesMessage = true;
       }
-      return false;
-   }
-   
-   return true;
-}     }
       return false;
    }
    
@@ -517,18 +514,12 @@ void CheckClosedPositions()
 }
 
 //+------------------------------------------------------------------+
+//| Manage open position                                             |
 //+------------------------------------------------------------------+
-//| Reset daily trade counter                                        |
-//+------------------------------------------------------------------+
-void ResetDailyTradeCounter()
+void ManageOpenPosition()
 {
-   datetime currentDate = iTime(_Symbol, PERIOD_D1, 0);
-   
-   if(currentDate != lastTradeDate)
-   {
-      tradesCountToday = 0;
-      lastTradeDate = currentDate;
-   }
+   // Placeholder for future enhancements
+   // Could add trailing stop, breakeven logic, etc.
 }
 
 //+------------------------------------------------------------------+
