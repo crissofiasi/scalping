@@ -1,0 +1,15 @@
+﻿{
+  "files.associations": {
+    "*.mq5": "mql5",
+    "*.mqh": "mql5",
+    "*.mq4": "mql4"
+  },
+  "editor.tabSize": 3,
+  "editor.insertSpaces": true,
+  "editor.formatOnSave": true,
+  "editor.bracketPairColorization.enabled": true,
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000,
+  "workbench.colorTheme": "Monokai",
+  "workbench.iconTheme": "material-icon-theme"
+}

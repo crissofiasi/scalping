@@ -1,0 +1,14 @@
+﻿{
+  "recommendations": [
+    "mql5.mql5",
+    "ms-vscode.cpptools",
+    "streetsidesoftware.code-spell-checker",
+    "eamodio.gitlens",
+    "CoenraadS.bracket-pair-colorizer-2",
+    "aaron-bond.better-comments",
+    "usernamehw.errorlens",
+    "christian-kohler.path-intellisense",
+    "wayou.vscode-todo-highlight",
+    "PKief.material-icon-theme"
+  ]
+}
