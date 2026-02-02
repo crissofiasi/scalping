@@ -46,6 +46,7 @@ input double   InpMinRiskReward = 1.5;         // Minimum Risk:Reward Ratio
 //=== Trade Limits ===
 input group "=== Trade Limits ==="
 input int      InpMaxTradesPerSession = 5;     // Max Trades Per Session
+input int      InpMaxLossesPerSession = 3;     // Max Losing Trades Per Session
 input int      InpMagicNumber = 123456;        // Magic Number
 input bool     InpDebugMode = true;            // Debug Mode (verbose logging)
 
@@ -53,11 +54,13 @@ input bool     InpDebugMode = true;            // Debug Mode (verbose logging)
 CTrade trade;
 int handleBB;
 int handleEMA_Filter;
-
 double bb_upper, bb_middle, bb_lower;
 double ema_filter_current;
 
 int tradesCountToday = 0;
+int lossesCountToday = 0;
+datetime lastTradeDate = 0;
+datetime lastCheckTime = 0;
 datetime lastTradeDate = 0;
 
 //+------------------------------------------------------------------+
@@ -110,12 +113,13 @@ void OnDeinit(const int reason)
 }
 
 //+------------------------------------------------------------------+
-//| Expert tick function                                             |
-//+------------------------------------------------------------------+
 void OnTick()
 {
    //--- Reset daily trade counter
    ResetDailyTradeCounter();
+   
+   //--- Check for closed positions and update loss counter
+   CheckClosedPositions();
    
    //--- Update indicator values on every tick
    if(!UpdateIndicators())
@@ -134,6 +138,8 @@ void OnTick()
    
    //--- Check for entry signals
    CheckForEntry();
+}  //--- Check for entry signals
+   CheckForEntry();
 }
 
 //+------------------------------------------------------------------+
@@ -150,20 +156,32 @@ bool IsTradingAllowed()
          MqlDateTime dt;
          TimeGMT(dt);
          Print("Outside trading hours. Current GMT: ", dt.hour, ":", dt.min);
-         lastPrintTime = TimeCurrent();
+   //--- Check max trades limit
+   if(tradesCountToday >= InpMaxTradesPerSession)
+   {
+      static bool printedTradesMessage = false;
+      if(!printedTradesMessage)
+      {
+         Print("Max trades per session reached: ", tradesCountToday);
+         printedTradesMessage = true;
       }
       return false;
    }
    
-   //--- Check max trades limit
-   if(tradesCountToday >= InpMaxTradesPerSession)
+   //--- Check max losses limit
+   if(lossesCountToday >= InpMaxLossesPerSession)
    {
-      static bool printedMessage = false;
-      if(!printedMessage)
+      static bool printedLossesMessage = false;
+      if(!printedLossesMessage)
       {
-         Print("Max trades per session reached: ", tradesCountToday);
-         printedMessage = true;
+         Print("Max losses per session reached: ", lossesCountToday, " - Trading stopped for today");
+         printedLossesMessage = true;
       }
+      return false;
+   }
+   
+   return true;
+}     }
       return false;
    }
    
@@ -425,21 +443,80 @@ double CalculateLotSize(double stopLoss, double entryPrice)
    
    return lotSize;
 }
-
 //+------------------------------------------------------------------+
-//| Manage open position                                             |
+//| Reset daily trade counter                                        |
 //+------------------------------------------------------------------+
-void ManageOpenPosition()
+void ResetDailyTradeCounter()
 {
-   //--- Get position info
-   ulong ticket = PositionGetTicket(0);
-   if(ticket == 0)
-      return;
+   datetime currentDate = iTime(_Symbol, PERIOD_D1, 0);
    
-   //--- Could add trailing stop or breakeven logic here
-   //--- For now, let SL/TP handle exits
+   if(currentDate != lastTradeDate)
+   {
+      tradesCountToday = 0;
+      lossesCountToday = 0;
+      lastTradeDate = currentDate;
+      
+      if(InpDebugMode)
+         Print("New trading day - Counters reset");
+   }
 }
 
+//+------------------------------------------------------------------+
+//| Check closed positions to count losses                           |
+//+------------------------------------------------------------------+
+void CheckClosedPositions()
+{
+   //--- Only check once per second to avoid performance issues
+   if(TimeCurrent() == lastCheckTime)
+      return;
+   
+   lastCheckTime = TimeCurrent();
+   
+   //--- Get deals from today
+   datetime today = iTime(_Symbol, PERIOD_D1, 0);
+   HistorySelect(today, TimeCurrent());
+   
+   int totalDeals = HistoryDealsTotal();
+   static int lastProcessedDeals = 0;
+   
+   //--- Only process new deals
+   if(totalDeals <= lastProcessedDeals)
+      return;
+   
+   //--- Check new deals for losses
+   for(int i = lastProcessedDeals; i < totalDeals; i++)
+   {
+      ulong dealTicket = HistoryDealGetTicket(i);
+      if(dealTicket == 0)
+         continue;
+      
+      //--- Check if it's our EA's deal
+      if(HistoryDealGetInteger(dealTicket, DEAL_MAGIC) != InpMagicNumber)
+         continue;
+      
+      //--- Check if it's an exit deal
+      if(HistoryDealGetInteger(dealTicket, DEAL_ENTRY) != DEAL_ENTRY_OUT)
+         continue;
+      
+      //--- Check if it's for our symbol
+      if(HistoryDealGetString(dealTicket, DEAL_SYMBOL) != _Symbol)
+         continue;
+      
+      //--- Get profit
+      double profit = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
+      
+      if(profit < 0)
+      {
+         lossesCountToday++;
+         if(InpDebugMode)
+            Print("Loss detected. Total losses today: ", lossesCountToday);
+      }
+   }
+   
+   lastProcessedDeals = totalDeals;
+}
+
+//+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
 //| Reset daily trade counter                                        |
 //+------------------------------------------------------------------+
