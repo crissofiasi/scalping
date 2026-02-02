@@ -1,21 +1,21 @@
 //+------------------------------------------------------------------+
 //|                                    AnalyzeScalpingPatterns.mq5   |
-//|                              Analyze real data for best strategy |
+//|                   Analyze Bollinger Band settings on real data   |
 //+------------------------------------------------------------------+
 #property copyright "Market Analysis Script"
-#property version   "1.00"
+#property version   "2.00"
 #property script_show_inputs
 
 //--- Input Parameters
 input int      InpBarsToAnalyze = 5000;        // Bars to Analyze
-input int      InpMinProfitPips = 5;           // Min Profit Target (pips)
-input int      InpMaxStopPips = 7;             // Max Stop Loss (pips)
 input bool     InpLondonNYOnly = true;         // London-NY Session Only
 
 //--- Analysis arrays
-struct TradePattern
+struct BBSettings
 {
-   string pattern_name;
+   int period;
+   double deviation;
+   string name;
    int total_signals;
    int winning_trades;
    int losing_trades;
@@ -23,6 +23,7 @@ struct TradePattern
    double avg_profit;
    double avg_loss;
    double profit_factor;
+   double avg_rr_ratio;
 };
 
 //+------------------------------------------------------------------+
@@ -31,7 +32,7 @@ struct TradePattern
 void OnStart()
 {
    Print("========================================");
-   Print("SCALPING PATTERN ANALYSIS");
+   Print("BOLLINGER BAND OPTIMIZATION");
    Print("Analyzing ", InpBarsToAnalyze, " bars on ", _Symbol);
    Print("========================================");
    Print("");
@@ -50,262 +51,213 @@ void OnStart()
    Print("Successfully loaded ", copied, " M5 bars");
    Print("");
    
-   //--- Calculate indicators for analysis
-   int handleEMA9 = iMA(_Symbol, PERIOD_M5, 9, 0, MODE_EMA, PRICE_CLOSE);
-   int handleEMA21 = iMA(_Symbol, PERIOD_M5, 21, 0, MODE_EMA, PRICE_CLOSE);
-   int handleEMA50 = iMA(_Symbol, PERIOD_M5, 50, 0, MODE_EMA, PRICE_CLOSE);
-   int handleRSI = iRSI(_Symbol, PERIOD_M5, 14, PRICE_CLOSE);
-   int handleATR = iATR(_Symbol, PERIOD_M5, 14);
-   int handleBB = iBands(_Symbol, PERIOD_M5, 20, 0, 2, PRICE_CLOSE);
+   //--- Test different BB configurations
+   BBSettings settings[];
+   int idx = 0;
    
-   double ema9[], ema21[], ema50[], rsi[], atr[], bb_upper[], bb_lower[], bb_middle[];
-   ArraySetAsSeries(ema9, true);
-   ArraySetAsSeries(ema21, true);
-   ArraySetAsSeries(ema50, true);
-   ArraySetAsSeries(rsi, true);
-   ArraySetAsSeries(atr, true);
-   ArraySetAsSeries(bb_upper, true);
-   ArraySetAsSeries(bb_lower, true);
-   ArraySetAsSeries(bb_middle, true);
+   //--- Period variations with standard 2.0 deviation
+   ArrayResize(settings, 30);
+   settings[idx++] = TestBBConfiguration(rates, 10, 2.0);
+   settings[idx++] = TestBBConfiguration(rates, 15, 2.0);
+   settings[idx++] = TestBBConfiguration(rates, 20, 2.0);  // Standard
+   settings[idx++] = TestBBConfiguration(rates, 25, 2.0);
+   settings[idx++] = TestBBConfiguration(rates, 30, 2.0);
    
-   CopyBuffer(handleEMA9, 0, 0, copied, ema9);
-   CopyBuffer(handleEMA21, 0, 0, copied, ema21);
-   CopyBuffer(handleEMA50, 0, 0, copied, ema50);
-   CopyBuffer(handleRSI, 0, 0, copied, rsi);
-   CopyBuffer(handleATR, 0, 0, copied, atr);
-   CopyBuffer(handleBB, 1, 0, copied, bb_upper);
-   CopyBuffer(handleBB, 2, 0, copied, bb_lower);
-   CopyBuffer(handleBB, 0, 0, copied, bb_middle);
+   //--- Deviation variations with standard 20 period
+   settings[idx++] = TestBBConfiguration(rates, 20, 1.5);
+   settings[idx++] = TestBBConfiguration(rates, 20, 2.0);  // Standard
+   settings[idx++] = TestBBConfiguration(rates, 20, 2.5);
+   settings[idx++] = TestBBConfiguration(rates, 20, 3.0);
    
-   Print("Indicators loaded successfully");
-   Print("");
+   //--- Aggressive scalping settings (tighter bands)
+   settings[idx++] = TestBBConfiguration(rates, 10, 1.5);
+   settings[idx++] = TestBBConfiguration(rates, 12, 1.5);
+   settings[idx++] = TestBBConfiguration(rates, 15, 1.5);
+   settings[idx++] = TestBBConfiguration(rates, 15, 1.8);
    
-   //--- Test different strategies
-   TradePattern patterns[];
-   ArrayResize(patterns, 8);
+   //--- Conservative settings (wider bands)
+   settings[idx++] = TestBBConfiguration(rates, 25, 2.5);
+   settings[idx++] = TestBBConfiguration(rates, 30, 2.5);
+   settings[idx++] = TestBBConfiguration(rates, 20, 2.8);
    
-   //--- Strategy 1: EMA 9/21 Crossover + EMA 50 Filter
-   patterns[0] = TestEMACrossover(rates, ema9, ema21, ema50);
+   //--- Fast scalping settings
+   settings[idx++] = TestBBConfiguration(rates, 8, 2.0);
+   settings[idx++] = TestBBConfiguration(rates, 10, 1.8);
+   settings[idx++] = TestBBConfiguration(rates, 12, 2.0);
    
-   //--- Strategy 2: Bollinger Band Bounce
-   patterns[1] = TestBollingerBounce(rates, bb_upper, bb_lower, bb_middle, ema50);
+   //--- Optimal combinations found in practice
+   settings[idx++] = TestBBConfiguration(rates, 14, 2.0);
+   settings[idx++] = TestBBConfiguration(rates, 16, 2.0);
+   settings[idx++] = TestBBConfiguration(rates, 18, 2.0);
+   settings[idx++] = TestBBConfiguration(rates, 18, 1.8);
+   settings[idx++] = TestBBConfiguration(rates, 22, 2.0);
    
-   //--- Strategy 3: RSI Oversold/Overbought
-   patterns[2] = TestRSIReversal(rates, rsi, ema50);
+   //--- Mixed settings
+   settings[idx++] = TestBBConfiguration(rates, 12, 1.8);
+   settings[idx++] = TestBBConfiguration(rates, 14, 1.8);
+   settings[idx++] = TestBBConfiguration(rates, 16, 1.8);
+   settings[idx++] = TestBBConfiguration(rates, 25, 2.2);
+   settings[idx++] = TestBBConfiguration(rates, 20, 2.2);
+   settings[idx++] = TestBBConfiguration(rates, 15, 2.2);
    
-   //--- Strategy 4: Price Action - Engulfing Candles
-   patterns[3] = TestEngulfingCandles(rates, ema50);
+   //--- Resize to actual count
+   ArrayResize(settings, idx);
    
-   //--- Strategy 5: Breakout from consolidation
-   patterns[4] = TestBreakoutStrategy(rates, atr, ema50);
-   
-   //--- Strategy 6: EMA Bounce (Price touches EMA and bounces)
-   patterns[5] = TestEMABounce(rates, ema21, ema50);
-   
-   //--- Strategy 7: Triple EMA alignment
-   patterns[6] = TestTripleEMAAlignment(rates, ema9, ema21, ema50);
-   
-   //--- Strategy 8: Momentum + Trend
-   patterns[7] = TestMomentumTrend(rates, ema9, ema21, ema50, rsi);
+   //--- Sort by profit factor
+   SortByProfitFactor(settings);
    
    //--- Display results
    Print("========================================");
-   Print("STRATEGY COMPARISON");
+   Print("TOP BOLLINGER BAND CONFIGURATIONS");
    Print("========================================");
    Print("");
    
-   //--- Sort by profit factor
-   SortPatternsByProfitFactor(patterns);
-   
-   //--- Display sorted results
-   for(int i = 0; i < ArraySize(patterns); i++)
+   //--- Show top 10
+   int displayCount = MathMin(10, ArraySize(settings));
+   for(int i = 0; i < displayCount; i++)
    {
-      if(patterns[i].total_signals > 10) // Only show strategies with enough signals
+      if(settings[i].total_signals > 5) // Min signals filter
       {
-         Print("--- ", patterns[i].pattern_name, " ---");
-         Print("  Signals: ", patterns[i].total_signals);
-         Print("  Win Rate: ", DoubleToString(patterns[i].win_rate, 2), "%");
-         Print("  Avg Profit: ", DoubleToString(patterns[i].avg_profit, 1), " pips");
-         Print("  Avg Loss: ", DoubleToString(patterns[i].avg_loss, 1), " pips");
-         Print("  Profit Factor: ", DoubleToString(patterns[i].profit_factor, 2));
+         Print("--- #", (i+1), ": ", settings[i].name, " ---");
+         Print("  Signals: ", settings[i].total_signals);
+         Print("  Win Rate: ", DoubleToString(settings[i].win_rate, 2), "%");
+         Print("  Avg Profit: ", DoubleToString(settings[i].avg_profit, 1), " pips");
+         Print("  Avg Loss: ", DoubleToString(settings[i].avg_loss, 1), " pips");
+         Print("  Avg R:R: ", DoubleToString(settings[i].avg_rr_ratio, 2));
+         Print("  Profit Factor: ", DoubleToString(settings[i].profit_factor, 2));
          Print("");
       }
    }
    
-   //--- Find best strategy
+   //--- Find best overall
    int bestIdx = 0;
-   double bestPF = 0;
-   for(int i = 0; i < ArraySize(patterns); i++)
+   double bestScore = 0;
+   for(int i = 0; i < ArraySize(settings); i++)
    {
-      if(patterns[i].total_signals > 10 && patterns[i].profit_factor > bestPF)
+      if(settings[i].total_signals > 10)
       {
-         bestPF = patterns[i].profit_factor;
-         bestIdx = i;
+         //--- Score = PF * WinRate * AvgRR (composite metric)
+         double score = settings[i].profit_factor * settings[i].win_rate * settings[i].avg_rr_ratio;
+         if(score > bestScore)
+         {
+            bestScore = score;
+            bestIdx = i;
+         }
       }
    }
    
    Print("========================================");
-   Print("RECOMMENDED STRATEGY: ", patterns[bestIdx].pattern_name);
-   Print("Win Rate: ", DoubleToString(patterns[bestIdx].win_rate, 2), "%");
-   Print("Profit Factor: ", DoubleToString(patterns[bestIdx].profit_factor, 2));
+   Print("RECOMMENDED SETTINGS: ", settings[bestIdx].name);
+   Print("Period: ", settings[bestIdx].period);
+   Print("Deviation: ", DoubleToString(settings[bestIdx].deviation, 1));
+   Print("Win Rate: ", DoubleToString(settings[bestIdx].win_rate, 2), "%");
+   Print("Profit Factor: ", DoubleToString(settings[bestIdx].profit_factor, 2));
+   Print("Avg R:R: ", DoubleToString(settings[bestIdx].avg_rr_ratio, 2));
    Print("========================================");
    
-   //--- Cleanup
-   IndicatorRelease(handleEMA9);
-   IndicatorRelease(handleEMA21);
-   IndicatorRelease(handleEMA50);
-   IndicatorRelease(handleRSI);
-   IndicatorRelease(handleATR);
-   IndicatorRelease(handleBB);
+   //--- Show all results in table format
+   Print("");
+   Print("COMPLETE RESULTS TABLE:");
+   Print("Period | Dev  | Signals | Win%  | AvgProfit | AvgLoss | R:R  | PF");
+   Print("-------|------|---------|-------|-----------|---------|------|-----");
+   for(int i = 0; i < ArraySize(settings); i++)
+   {
+      if(settings[i].total_signals > 0)
+      {
+         Print(StringFormat("%6d | %4.1f | %7d | %5.1f | %9.1f | %7.1f | %4.2f | %4.2f",
+               settings[i].period,
+               settings[i].deviation,
+               settings[i].total_signals,
+               settings[i].win_rate,
+               settings[i].avg_profit,
+               settings[i].avg_loss,
+               settings[i].avg_rr_ratio,
+               settings[i].profit_factor));
+      }
+   }
 }
 
 //+------------------------------------------------------------------+
-//| Test EMA Crossover Strategy                                      |
+//| Test BB Configuration                                            |
 //+------------------------------------------------------------------+
-TradePattern TestEMACrossover(const MqlRates &rates[], const double &ema9[], const double &ema21[], const double &ema50[])
+BBSettings TestBBConfiguration(const MqlRates &rates[], int period, double deviation)
 {
-   TradePattern result;
-   result.pattern_name = "EMA 9/21 Crossover + EMA50 Filter";
+   BBSettings result;
+   result.period = period;
+   result.deviation = deviation;
+   result.name = StringFormat("BB(%d, %.1f)", period, deviation);
    result.total_signals = 0;
    result.winning_trades = 0;
    result.losing_trades = 0;
    
    double total_profit = 0;
    double total_loss = 0;
+   double total_rr = 0;
    double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    
-   for(int i = 100; i < ArraySize(rates) - 50; i++)
+   //--- Create BB and EMA50 for this test
+   int handleBB = iBands(_Symbol, PERIOD_M5, period, 0, deviation, PRICE_CLOSE);
+   int handleEMA50 = iMA(_Symbol, PERIOD_M5, 50, 0, MODE_EMA, PRICE_CLOSE);
+   
+   if(handleBB == INVALID_HANDLE || handleEMA50 == INVALID_HANDLE)
    {
-      if(InpLondonNYOnly && !IsLondonNYSession(rates[i].time))
-         continue;
-      
-      //--- Bullish crossover
-      if(ema9[i+1] <= ema21[i+1] && ema9[i] > ema21[i] && rates[i].close > ema50[i])
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = entry - InpMaxStopPips * 10 * point;
-         double tp = entry + InpMinProfitPips * 10 * point;
-         
-         if(SimulateTrade(rates, i, true, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-      
-      //--- Bearish crossover
-      if(ema9[i+1] >= ema21[i+1] && ema9[i] < ema21[i] && rates[i].close < ema50[i])
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = entry + InpMaxStopPips * 10 * point;
-         double tp = entry - InpMinProfitPips * 10 * point;
-         
-         if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
+      Print("Error creating handles for ", result.name);
+      return result;
    }
    
-   CalculateMetrics(result, total_profit, total_loss);
-   return result;
-}
-
-//+------------------------------------------------------------------+
-//| Test Bollinger Band Bounce Strategy                             |
-//+------------------------------------------------------------------+
-TradePattern TestBollingerBounce(const MqlRates &rates[], const double &bb_upper[], const double &bb_lower[], const double &bb_middle[], const double &ema50[])
-{
-   TradePattern result;
-   result.pattern_name = "Bollinger Band Bounce";
-   result.total_signals = 0;
-   result.winning_trades = 0;
-   result.losing_trades = 0;
+   double bb_upper[], bb_middle[], bb_lower[], ema50[];
+   ArraySetAsSeries(bb_upper, true);
+   ArraySetAsSeries(bb_middle, true);
+   ArraySetAsSeries(bb_lower, true);
+   ArraySetAsSeries(ema50, true);
    
-   double total_profit = 0;
-   double total_loss = 0;
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   int copied = ArraySize(rates);
+   CopyBuffer(handleBB, 1, 0, copied, bb_upper);
+   CopyBuffer(handleBB, 0, 0, copied, bb_middle);
+   CopyBuffer(handleBB, 2, 0, copied, bb_lower);
+   CopyBuffer(handleEMA50, 0, 0, copied, ema50);
    
+   //--- Test strategy
    for(int i = 100; i < ArraySize(rates) - 50; i++)
    {
       if(InpLondonNYOnly && !IsLondonNYSession(rates[i].time))
          continue;
       
-      //--- Buy at lower band (oversold bounce)
-      if(rates[i].low <= bb_lower[i] && rates[i].close > bb_lower[i] && rates[i].close > ema50[i])
+      //--- Bullish bounce (buy at lower band)
+      bool touchedLower = rates[i].low <= bb_lower[i];
+      bool closedAboveLower = rates[i].close > bb_lower[i];
+      bool uptrend = rates[i].close > ema50[i];
+      
+      if(touchedLower && closedAboveLower && uptrend)
       {
          result.total_signals++;
          double entry = rates[i].close;
          double sl = bb_lower[i] - 5 * 10 * point;
          double tp = bb_middle[i];
          
+         double rr = MathAbs(tp - entry) / MathAbs(entry - sl);
+         total_rr += rr;
+         
          if(SimulateTrade(rates, i, true, entry, sl, tp, total_profit, total_loss))
             result.winning_trades++;
          else
             result.losing_trades++;
       }
       
-      //--- Sell at upper band (overbought bounce)
-      if(rates[i].high >= bb_upper[i] && rates[i].close < bb_upper[i] && rates[i].close < ema50[i])
+      //--- Bearish bounce (sell at upper band)
+      bool touchedUpper = rates[i].high >= bb_upper[i];
+      bool closedBelowUpper = rates[i].close < bb_upper[i];
+      bool downtrend = rates[i].close < ema50[i];
+      
+      if(touchedUpper && closedBelowUpper && downtrend)
       {
          result.total_signals++;
          double entry = rates[i].close;
          double sl = bb_upper[i] + 5 * 10 * point;
          double tp = bb_middle[i];
          
-         if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-   }
-   
-   CalculateMetrics(result, total_profit, total_loss);
-   return result;
-}
-
-//+------------------------------------------------------------------+
-//| Test RSI Reversal Strategy                                       |
-//+------------------------------------------------------------------+
-TradePattern TestRSIReversal(const MqlRates &rates[], const double &rsi[], const double &ema50[])
-{
-   TradePattern result;
-   result.pattern_name = "RSI Oversold/Overbought Reversal";
-   result.total_signals = 0;
-   result.winning_trades = 0;
-   result.losing_trades = 0;
-   
-   double total_profit = 0;
-   double total_loss = 0;
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   
-   for(int i = 100; i < ArraySize(rates) - 50; i++)
-   {
-      if(InpLondonNYOnly && !IsLondonNYSession(rates[i].time))
-         continue;
-      
-      //--- Buy when RSI oversold and turning up
-      if(rsi[i+1] < 30 && rsi[i] > 30 && rates[i].close > ema50[i])
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = entry - InpMaxStopPips * 10 * point;
-         double tp = entry + InpMinProfitPips * 10 * point;
-         
-         if(SimulateTrade(rates, i, true, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-      
-      //--- Sell when RSI overbought and turning down
-      if(rsi[i+1] > 70 && rsi[i] < 70 && rates[i].close < ema50[i])
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = entry + InpMaxStopPips * 10 * point;
-         double tp = entry - InpMinProfitPips * 10 * point;
+         double rr = MathAbs(entry - tp) / MathAbs(sl - entry);
+         total_rr += rr;
          
          if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))
             result.winning_trades++;
@@ -314,297 +266,97 @@ TradePattern TestRSIReversal(const MqlRates &rates[], const double &rsi[], const
       }
    }
    
-   CalculateMetrics(result, total_profit, total_loss);
+   //--- Calculate metrics
+   if(result.total_signals > 0)
+   {
+      result.win_rate = (double)result.winning_trades / result.total_signals * 100;
+      result.avg_profit = result.winning_trades > 0 ? total_profit / result.winning_trades : 0;
+      result.avg_loss = result.losing_trades > 0 ? total_loss / result.losing_trades : 0;
+      result.profit_factor = total_loss > 0 ? total_profit / total_loss : 0;
+      result.avg_rr_ratio = total_rr / result.total_signals;
+   }
+   
+   //--- Cleanup
+   IndicatorRelease(handleBB);
+   IndicatorRelease(handleEMA50);
+   
    return result;
 }
 
 //+------------------------------------------------------------------+
-//| Test Engulfing Candle Pattern                                    |
+//| Simulate trade outcome                                           |
 //+------------------------------------------------------------------+
-TradePattern TestEngulfingCandles(const MqlRates &rates[], const double &ema50[])
+bool SimulateTrade(const MqlRates &rates[], int entry_idx, bool is_buy, double entry, double sl, double tp, double &total_profit, double &total_loss)
 {
-   TradePattern result;
-   result.pattern_name = "Bullish/Bearish Engulfing Pattern";
-   result.total_signals = 0;
-   result.winning_trades = 0;
-   result.losing_trades = 0;
-   
-   double total_profit = 0;
-   double total_loss = 0;
    double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    
-   for(int i = 100; i < ArraySize(rates) - 50; i++)
+   //--- Look forward up to 50 bars
+   for(int i = entry_idx - 1; i >= MathMax(0, entry_idx - 50); i--)
    {
-      if(InpLondonNYOnly && !IsLondonNYSession(rates[i].time))
-         continue;
-      
-      //--- Bullish engulfing
-      bool bullishEngulfing = rates[i+1].close < rates[i+1].open && // Previous bearish
-                              rates[i].close > rates[i].open &&     // Current bullish
-                              rates[i].open <= rates[i+1].close &&  // Opens at/below prev close
-                              rates[i].close > rates[i+1].open;     // Closes above prev open
-      
-      if(bullishEngulfing && rates[i].close > ema50[i])
+      if(is_buy)
       {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = rates[i].low - 3 * 10 * point;
-         double tp = entry + (entry - sl) * 1.5;
-         
-         if(SimulateTrade(rates, i, true, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
+         if(rates[i].low <= sl)
+         {
+            total_loss += MathAbs(entry - sl) / point / 10;
+            return false;
+         }
+         if(rates[i].high >= tp)
+         {
+            total_profit += MathAbs(tp - entry) / point / 10;
+            return true;
+         }
       }
-      
-      //--- Bearish engulfing
-      bool bearishEngulfing = rates[i+1].close > rates[i+1].open && // Previous bullish
-                              rates[i].close < rates[i].open &&     // Current bearish
-                              rates[i].open >= rates[i+1].close &&  // Opens at/above prev close
-                              rates[i].close < rates[i+1].open;     // Closes below prev open
-      
-      if(bearishEngulfing && rates[i].close < ema50[i])
+      else
       {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = rates[i].high + 3 * 10 * point;
-         double tp = entry - (sl - entry) * 1.5;
-         
-         if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
+         if(rates[i].high >= sl)
+         {
+            total_loss += MathAbs(sl - entry) / point / 10;
+            return false;
+         }
+         if(rates[i].low <= tp)
+         {
+            total_profit += MathAbs(entry - tp) / point / 10;
+            return true;
+         }
       }
    }
    
-   CalculateMetrics(result, total_profit, total_loss);
-   return result;
+   //--- Timeout - consider as loss
+   total_loss += 5;
+   return false;
 }
 
 //+------------------------------------------------------------------+
-//| Test Breakout Strategy                                           |
+//| Check if London-NY session                                       |
 //+------------------------------------------------------------------+
-TradePattern TestBreakoutStrategy(const MqlRates &rates[], const double &atr[], const double &ema50[])
+bool IsLondonNYSession(datetime time)
 {
-   TradePattern result;
-   result.pattern_name = "Consolidation Breakout";
-   result.total_signals = 0;
-   result.winning_trades = 0;
-   result.losing_trades = 0;
-   
-   double total_profit = 0;
-   double total_loss = 0;
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   
-   for(int i = 100; i < ArraySize(rates) - 50; i++)
+   MqlDateTime dt;
+   TimeToStruct(time, dt);
+   int hour = dt.hour;
+   return (hour >= 12 && hour < 16); // 12:00-16:00 GMT
+}
+
+//+------------------------------------------------------------------+
+//| Sort by profit factor                                            |
+//+------------------------------------------------------------------+
+void SortByProfitFactor(BBSettings &settings[])
+{
+   int size = ArraySize(settings);
+   for(int i = 0; i < size - 1; i++)
    {
-      if(InpLondonNYOnly && !IsLondonNYSession(rates[i].time))
-         continue;
-      
-      //--- Find consolidation (low ATR for 5+ bars)
-      bool consolidating = true;
-      double avgATR = 0;
-      for(int j = i; j < i + 5; j++)
+      for(int j = i + 1; j < size; j++)
       {
-         avgATR += atr[j];
-      }
-      avgATR /= 5;
-      
-      //--- Bullish breakout
-      if(rates[i].close > rates[i].open && 
-         rates[i].close > MathMax(MathMax(rates[i+1].high, rates[i+2].high), rates[i+3].high) &&
-         rates[i].close > ema50[i])
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = rates[i].low;
-         double tp = entry + (entry - sl) * 2;
-         
-         if(SimulateTrade(rates, i, true, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-      
-      //--- Bearish breakout
-      if(rates[i].close < rates[i].open && 
-         rates[i].close < MathMin(MathMin(rates[i+1].low, rates[i+2].low), rates[i+3].low) &&
-         rates[i].close < ema50[i])
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = rates[i].high;
-         double tp = entry - (sl - entry) * 2;
-         
-         if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
+         if(settings[j].profit_factor > settings[i].profit_factor)
+         {
+            BBSettings temp = settings[i];
+            settings[i] = settings[j];
+            settings[j] = temp;
+         }
       }
    }
-   
-   CalculateMetrics(result, total_profit, total_loss);
-   return result;
 }
-
 //+------------------------------------------------------------------+
-//| Test EMA Bounce Strategy                                         |
-//+------------------------------------------------------------------+
-TradePattern TestEMABounce(const MqlRates &rates[], const double &ema21[], const double &ema50[])
-{
-   TradePattern result;
-   result.pattern_name = "EMA21 Bounce in Trend";
-   result.total_signals = 0;
-   result.winning_trades = 0;
-   result.losing_trades = 0;
-   
-   double total_profit = 0;
-   double total_loss = 0;
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   
-   for(int i = 100; i < ArraySize(rates) - 50; i++)
-   {
-      if(InpLondonNYOnly && !IsLondonNYSession(rates[i].time))
-         continue;
-      
-      //--- Bullish bounce (price touches EMA21 from above in uptrend)
-      if(rates[i].low <= ema21[i] && rates[i].close > ema21[i] && 
-         ema21[i] > ema50[i] && rates[i].close > rates[i].open)
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = ema21[i] - 5 * 10 * point;
-         double tp = entry + InpMinProfitPips * 10 * point;
-         
-         if(SimulateTrade(rates, i, true, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-      
-      //--- Bearish bounce (price touches EMA21 from below in downtrend)
-      if(rates[i].high >= ema21[i] && rates[i].close < ema21[i] && 
-         ema21[i] < ema50[i] && rates[i].close < rates[i].open)
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = ema21[i] + 5 * 10 * point;
-         double tp = entry - InpMinProfitPips * 10 * point;
-         
-         if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-   }
-   
-   CalculateMetrics(result, total_profit, total_loss);
-   return result;
-}
-
-//+------------------------------------------------------------------+
-//| Test Triple EMA Alignment                                        |
-//+------------------------------------------------------------------+
-TradePattern TestTripleEMAAlignment(const MqlRates &rates[], const double &ema9[], const double &ema21[], const double &ema50[])
-{
-   TradePattern result;
-   result.pattern_name = "Triple EMA Perfect Alignment";
-   result.total_signals = 0;
-   result.winning_trades = 0;
-   result.losing_trades = 0;
-   
-   double total_profit = 0;
-   double total_loss = 0;
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   
-   for(int i = 100; i < ArraySize(rates) - 50; i++)
-   {
-      if(InpLondonNYOnly && !IsLondonNYSession(rates[i].time))
-         continue;
-      
-      //--- Bullish alignment (EMA9 > EMA21 > EMA50)
-      bool bullishAlign = ema9[i] > ema21[i] && ema21[i] > ema50[i];
-      bool bullishAlignFormed = !( ema9[i+1] > ema21[i+1] && ema21[i+1] > ema50[i+1]);
-      
-      if(bullishAlign && bullishAlignFormed)
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = ema50[i] - 3 * 10 * point;
-         double tp = entry + InpMinProfitPips * 10 * point;
-         
-         if(SimulateTrade(rates, i, true, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-      
-      //--- Bearish alignment (EMA9 < EMA21 < EMA50)
-      bool bearishAlign = ema9[i] < ema21[i] && ema21[i] < ema50[i];
-      bool bearishAlignFormed = !(ema9[i+1] < ema21[i+1] && ema21[i+1] < ema50[i+1]);
-      
-      if(bearishAlign && bearishAlignFormed)
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = ema50[i] + 3 * 10 * point;
-         double tp = entry - InpMinProfitPips * 10 * point;
-         
-         if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-   }
-   
-   CalculateMetrics(result, total_profit, total_loss);
-   return result;
-}
-
-//+------------------------------------------------------------------+
-//| Test Momentum + Trend Strategy                                   |
-//+------------------------------------------------------------------+
-TradePattern TestMomentumTrend(const MqlRates &rates[], const double &ema9[], const double &ema21[], const double &ema50[], const double &rsi[])
-{
-   TradePattern result;
-   result.pattern_name = "Momentum + Trend Confirmation";
-   result.total_signals = 0;
-   result.winning_trades = 0;
-   result.losing_trades = 0;
-   
-   double total_profit = 0;
-   double total_loss = 0;
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   
-   for(int i = 100; i < ArraySize(rates) - 50; i++)
-   {
-      if(InpLondonNYOnly && !IsLondonNYSession(rates[i].time))
-         continue;
-      
-      //--- Bullish: Strong uptrend + momentum
-      if(ema9[i] > ema21[i] && ema21[i] > ema50[i] && 
-         rsi[i] > 50 && rsi[i] < 70 &&
-         rates[i].close > rates[i].open)
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = ema21[i];
-         double tp = entry + (entry - sl) * 2;
-         
-         if(SimulateTrade(rates, i, true, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-      
-      //--- Bearish: Strong downtrend + momentum
-      if(ema9[i] < ema21[i] && ema21[i] < ema50[i] && 
-         rsi[i] < 50 && rsi[i] > 30 &&
-         rates[i].close < rates[i].open)
-      {
-         result.total_signals++;
-         double entry = rates[i].close;
-         double sl = ema21[i];
          double tp = entry - (sl - entry) * 2;
          
          if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))

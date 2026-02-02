@@ -1,10 +1,10 @@
 //+------------------------------------------------------------------+
 //|                                                   ScalpingEA.mq5 |
-//|                                          Professional Scalping EA |
+//|                              Bollinger Band Bounce Scalping EA   |
 //|                                                    February 2026 |
 //+------------------------------------------------------------------+
-#property copyright "Scalping EA"
-#property version   "1.00"
+#property copyright "Scalping EA - Bollinger Bounce"
+#property version   "2.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -18,46 +18,46 @@ input int      InpEndHour = 16;                // End Hour (GMT)
 input int      InpEndMinute = 0;               // End Minute
 input bool     InpAvoidAsianSession = true;    // Avoid Asian Session
 
-//=== EMA Settings ===
-input group "=== EMA Indicators ==="
-input int      InpEMA_Fast = 9;                // Fast EMA Period
-input int      InpEMA_Slow = 21;               // Slow EMA Period
-input int      InpEMA_Filter = 50;             // Trend Filter EMA Period
-input ENUM_TIMEFRAMES InpEntryTimeframe = PERIOD_M5;    // Entry Timeframe
-input ENUM_TIMEFRAMES InpFilterTimeframe = PERIOD_M15;  // Filter Timeframe
+//=== Bollinger Bands Settings ===
+input group "=== Bollinger Bands ==="
+input int      InpBB_Period = 20;              // BB Period
+input double   InpBB_Deviation = 2.0;          // BB Standard Deviation
+input ENUM_APPLIED_PRICE InpBB_Price = PRICE_CLOSE;  // BB Applied Price
 
-//=== ATR Settings ===
-input group "=== Volatility Filter ==="
-input int      InpATR_Period = 5;              // ATR Period
-input double   InpATR_MinThreshold = 0.0001;   // Minimum ATR Threshold (in price)
-input bool     InpUseATRFilter = true;         // Use ATR Filter
+//=== Trend Filter ===
+input group "=== Trend Filter ==="
+input int      InpEMA_Filter = 50;             // Trend Filter EMA Period
+input bool     InpUseTrendFilter = true;       // Use EMA Trend Filter
+input ENUM_TIMEFRAMES InpTimeframe = PERIOD_M5; // Timeframe
+
+//=== Entry Settings ===
+input group "=== Entry Confirmation ==="
+input bool     InpRequireCandleClose = true;   // Require Candle Close Above/Below Band
+input double   InpMinBandDistance = 0.0;       // Min Distance to Band (0=disable, pips)
 
 //=== Risk Management ===
 input group "=== Risk Management ==="
 input double   InpRiskPercent = 1.0;           // Risk Per Trade (%)
-input int      InpStopLoss_Min = 3;            // Stop Loss Min (pips)
-input int      InpStopLoss_Max = 7;            // Stop Loss Max (pips)
-input int      InpTakeProfit_Min = 5;          // Take Profit Min (pips)
-input int      InpTakeProfit_Max = 10;         // Take Profit Max (pips)
+input int      InpStopLossPips = 5;            // Stop Loss Beyond Band (pips)
+input bool     InpUseBBMiddleTP = true;        // Use BB Middle as Take Profit
+input int      InpFixedTPPips = 10;            // Fixed TP if not using BB Middle (pips)
 input double   InpMinRiskReward = 1.5;         // Minimum Risk:Reward Ratio
 
 //=== Trade Limits ===
 input group "=== Trade Limits ==="
 input int      InpMaxTradesPerSession = 5;     // Max Trades Per Session
 input int      InpMagicNumber = 123456;        // Magic Number
+input bool     InpDebugMode = true;            // Debug Mode (verbose logging)
 
 //--- Global Variables
 CTrade trade;
-int handleEMA_Fast;
-int handleEMA_Slow;
+int handleBB;
 int handleEMA_Filter;
-int handleATR;
 
-double ema_fast_current, ema_fast_previous;
-double ema_slow_current, ema_slow_previous;
+double bb_upper, bb_middle, bb_lower;
 double ema_filter_current;
-double atr_current;
 
+int tradesCountToday = 0;
 int tradesCountToday = 0;
 datetime lastTradeDate = 0;
 
@@ -72,35 +72,37 @@ int OnInit()
    trade.SetTypeFilling(ORDER_FILLING_FOK);
    
    //--- Create indicator handles
-   handleEMA_Fast = iMA(_Symbol, InpEntryTimeframe, InpEMA_Fast, 0, MODE_EMA, PRICE_CLOSE);
-   handleEMA_Slow = iMA(_Symbol, InpEntryTimeframe, InpEMA_Slow, 0, MODE_EMA, PRICE_CLOSE);
-   handleEMA_Filter = iMA(_Symbol, InpFilterTimeframe, InpEMA_Filter, 0, MODE_EMA, PRICE_CLOSE);
-   handleATR = iATR(_Symbol, InpEntryTimeframe, InpATR_Period);
+   handleBB = iBands(_Symbol, InpTimeframe, InpBB_Period, 0, InpBB_Deviation, InpBB_Price);
+   handleEMA_Filter = iMA(_Symbol, InpTimeframe, InpEMA_Filter, 0, MODE_EMA, PRICE_CLOSE);
    
    //--- Check handles
-   if(handleEMA_Fast == INVALID_HANDLE || handleEMA_Slow == INVALID_HANDLE || 
-      handleEMA_Filter == INVALID_HANDLE || handleATR == INVALID_HANDLE)
+   if(handleBB == INVALID_HANDLE || handleEMA_Filter == INVALID_HANDLE)
    {
       Print("Error creating indicator handles!");
       return(INIT_FAILED);
    }
    
-   Print("ScalpingEA initialized successfully");
-   Print("Trading Hours: ", InpStartHour, ":", InpStartMinute, " - ", InpEndHour, ":", InpEndMinute, " GMT");
+   Print("========================================");
+   Print("Bollinger Band Bounce EA Initialized");
+   Print("========================================");
+   Print("Strategy: Mean Reversion Scalping");
+   Print("Bollinger Bands: ", InpBB_Period, " period, ", InpBB_Deviation, " deviation");
+   Print("Trend Filter: EMA", InpEMA_Filter);
+   Print("Trading Hours: ", InpStartHour, ":", StringFormat("%02d", InpStartMinute), 
+         " - ", InpEndHour, ":", StringFormat("%02d", InpEndMinute), " GMT");
    Print("Risk per trade: ", InpRiskPercent, "%");
    Print("Max trades per session: ", InpMaxTradesPerSession);
-   
-   return(INIT_SUCCEEDED);
-}
-
 //+------------------------------------------------------------------+
 //| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
    //--- Release indicator handles
-   IndicatorRelease(handleEMA_Fast);
-   IndicatorRelease(handleEMA_Slow);
+   IndicatorRelease(handleBB);
+   IndicatorRelease(handleEMA_Filter);
+   
+   Print("Bollinger Band Bounce EA deinitialized");
+}  IndicatorRelease(handleEMA_Slow);
    IndicatorRelease(handleEMA_Filter);
    IndicatorRelease(handleATR);
    
@@ -137,13 +139,15 @@ void OnTick()
 //+------------------------------------------------------------------+
 //| Check if trading is allowed                                      |
 //+------------------------------------------------------------------+
+//| Check if trading is allowed                                      |
+//+------------------------------------------------------------------+
 bool IsTradingAllowed()
 {
    //--- Check trading hours
    if(!IsWithinTradingHours())
    {
       static datetime lastPrintTime = 0;
-      if(TimeCurrent() - lastPrintTime > 3600) // Print once per hour
+      if(InpDebugMode && TimeCurrent() - lastPrintTime > 3600) // Print once per hour
       {
          MqlDateTime dt;
          TimeGMT(dt);
@@ -165,22 +169,8 @@ bool IsTradingAllowed()
       return false;
    }
    
-   //--- Check ATR filter
-   if(InpUseATRFilter && atr_current < InpATR_MinThreshold)
-   {
-      static datetime lastATRPrint = 0;
-      if(TimeCurrent() - lastATRPrint > 300) // Print every 5 minutes
-      {
-         Print("ATR too low: ", atr_current, " < ", InpATR_MinThreshold);
-         lastATRPrint = TimeCurrent();
-      }
-      return false;
-   }
-   
    return true;
-}
-
-//+------------------------------------------------------------------+
+}/+------------------------------------------------------------------+
 //| Check if within trading hours                                    |
 //+------------------------------------------------------------------+
 bool IsWithinTradingHours()
@@ -217,90 +207,104 @@ bool UpdateIndicators()
    ArraySetAsSeries(ema_slow_array, true);
    ArraySetAsSeries(ema_filter_array, true);
    ArraySetAsSeries(atr_array, true);
+//+------------------------------------------------------------------+
+//| Update indicator values                                          |
+//+------------------------------------------------------------------+
+bool UpdateIndicators()
+{
+   double bb_upper_array[];
+   double bb_middle_array[];
+   double bb_lower_array[];
+   double ema_filter_array[];
+   
+   ArraySetAsSeries(bb_upper_array, true);
+   ArraySetAsSeries(bb_middle_array, true);
+   ArraySetAsSeries(bb_lower_array, true);
+   ArraySetAsSeries(ema_filter_array, true);
    
    //--- Copy indicator values
-   if(CopyBuffer(handleEMA_Fast, 0, 0, 2, ema_fast_array) < 2)
+   if(CopyBuffer(handleBB, 1, 0, 1, bb_upper_array) < 1)  // Upper band
       return false;
-   if(CopyBuffer(handleEMA_Slow, 0, 0, 2, ema_slow_array) < 2)
+   if(CopyBuffer(handleBB, 0, 0, 1, bb_middle_array) < 1) // Middle band
+      return false;
+   if(CopyBuffer(handleBB, 2, 0, 1, bb_lower_array) < 1)  // Lower band
       return false;
    if(CopyBuffer(handleEMA_Filter, 0, 0, 1, ema_filter_array) < 1)
       return false;
-   if(CopyBuffer(handleATR, 0, 0, 1, atr_array) < 1)
-      return false;
    
    //--- Store values
-   ema_fast_current = ema_fast_array[0];
-   ema_fast_previous = ema_fast_array[1];
-   ema_slow_current = ema_slow_array[0];
-   ema_slow_previous = ema_slow_array[1];
+   bb_upper = bb_upper_array[0];
+   bb_middle = bb_middle_array[0];
+   bb_lower = bb_lower_array[0];
    ema_filter_current = ema_filter_array[0];
-   atr_current = atr_array[0];
    
    return true;
-}
-
+}     Print("=== Signal Check ===");
+      Print("EMA Fast: ", ema_fast_current, " (prev: ", ema_fast_previous, ")");
 //+------------------------------------------------------------------+
 //| Check for entry signals                                          |
 //+------------------------------------------------------------------+
 void CheckForEntry()
 {
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   if(CopyRates(_Symbol, InpTimeframe, 0, 2, rates) < 2)
+      return;
+   
    double price_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double price_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    
-   //--- Debug logging (remove after testing)
+   //--- Debug logging
    static datetime lastDebugTime = 0;
-   if(TimeCurrent() - lastDebugTime > 60) // Print every minute
+   if(InpDebugMode && TimeCurrent() - lastDebugTime > 60) // Print every minute
    {
-      Print("=== Signal Check ===");
-      Print("EMA Fast: ", ema_fast_current, " (prev: ", ema_fast_previous, ")");
-      Print("EMA Slow: ", ema_slow_current, " (prev: ", ema_slow_previous, ")");
-      Print("EMA Filter: ", ema_filter_current, " | Price: ", price_bid);
-      Print("ATR: ", atr_current);
+      Print("=== BB Signal Check ===");
+      Print("Price: ", price_bid);
+      Print("BB Upper: ", bb_upper);
+      Print("BB Middle: ", bb_middle);
+      Print("BB Lower: ", bb_lower);
+      Print("EMA Filter: ", ema_filter_current);
+      Print("Band Width: ", DoubleToString((bb_upper - bb_lower) / point / 10, 1), " pips");
       lastDebugTime = TimeCurrent();
    }
    
-   //--- Bullish Setup
-   bool bullishCrossover = (ema_fast_previous < ema_slow_previous) && 
-                           (ema_fast_current > ema_slow_current);
-   bool bullishFilter = price_bid > ema_filter_current;
+   //--- Bullish Bounce (Buy at Lower Band)
+   bool touchedLowerBand = rates[0].low <= bb_lower;
+   bool closedAboveLowerBand = rates[0].close > bb_lower;
+   bool bullishTrend = !InpUseTrendFilter || (price_bid > ema_filter_current);
    
-   if(bullishCrossover && bullishFilter)
+   if(touchedLowerBand && closedAboveLowerBand && bullishTrend)
    {
-      Print("*** BULLISH SIGNAL DETECTED ***");
-      Print("Crossover: Fast crossed above Slow");
-      Print("Filter: Price ", price_bid, " > EMA50 ", ema_filter_current);
+      if(InpDebugMode)
+      {
+         Print("*** BULLISH BB BOUNCE DETECTED ***");
+         Print("Low: ", rates[0].low, " touched band: ", bb_lower);
+         Print("Close: ", rates[0].close, " above band");
+         Print("Trend OK: Price ", price_bid, " > EMA50 ", ema_filter_current);
+      }
       OpenTrade(ORDER_TYPE_BUY);
       return;
    }
    
-   //--- Bearish Setup
-   bool bearishCrossover = (ema_fast_previous > ema_slow_previous) && 
-                           (ema_fast_current < ema_slow_current);
-   bool bearishFilter = price_bid < ema_filter_current;
+   //--- Bearish Bounce (Sell at Upper Band)
+   bool touchedUpperBand = rates[0].high >= bb_upper;
+   bool closedBelowUpperBand = rates[0].close < bb_upper;
+   bool bearishTrend = !InpUseTrendFilter || (price_bid < ema_filter_current);
    
-   if(bearishCrossover && bearishFilter)
+   if(touchedUpperBand && closedBelowUpperBand && bearishTrend)
    {
-      Print("*** BEARISH SIGNAL DETECTED ***");
-      Print("Crossover: Fast crossed below Slow");
-      Print("Filter: Price ", price_bid, " < EMA50 ", ema_filter_current);
+      if(InpDebugMode)
+      {
+         Print("*** BEARISH BB BOUNCE DETECTED ***");
+         Print("High: ", rates[0].high, " touched band: ", bb_upper);
+         Print("Close: ", rates[0].close, " below band");
+         Print("Trend OK: Price ", price_bid, " < EMA50 ", ema_filter_current);
+      }
       OpenTrade(ORDER_TYPE_SELL);
       return;
    }
-}
-
-//+------------------------------------------------------------------+
-//| Open a trade                                                      |
-//+------------------------------------------------------------------+
-void OpenTrade(ENUM_ORDER_TYPE orderType)
-{
-   double price = (orderType == ORDER_TYPE_BUY) ? 
-                  SymbolInfoDouble(_Symbol, SYMBOL_ASK) : 
-                  SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   
-   //--- Calculate stop loss and take profit
-   double sl = CalculateStopLoss(orderType, price);
-   double tp = CalculateTakeProfit(orderType, price);
-   
+}  
    //--- Validate risk:reward ratio
    double slDistance = MathAbs(price - sl);
    double tpDistance = MathAbs(tp - price);
@@ -340,44 +344,48 @@ void OpenTrade(ENUM_ORDER_TYPE orderType)
          Print("BUY order failed: ", trade.ResultRetcodeDescription());
       }
    }
-   else
-   {
-      if(trade.Sell(lotSize, _Symbol, price, sl, tp, comment))
-      {
-         Print("SELL order opened: Lot=", lotSize, " SL=", sl, " TP=", tp);
-         tradesCountToday++;
-      }
-      else
-      {
-         Print("SELL order failed: ", trade.ResultRetcodeDescription());
-      }
-   }
-}
-
 //+------------------------------------------------------------------+
 //| Calculate stop loss                                              |
 //+------------------------------------------------------------------+
 double CalculateStopLoss(ENUM_ORDER_TYPE orderType, double entryPrice)
 {
    double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-   
-   //--- Use ATR-based stop loss (adaptive within min-max range)
-   double atrPips = atr_current / point / 10; // Convert to pips
-   int slPips = (int)MathMax(InpStopLoss_Min, MathMin(atrPips, InpStopLoss_Max));
-   
-   double slDistance = slPips * 10 * point; // Convert pips to price
+   double slDistance = InpStopLossPips * 10 * point;
    
    if(orderType == ORDER_TYPE_BUY)
-      return entryPrice - slDistance;
+   {
+      //--- Place SL below lower band
+      return bb_lower - slDistance;
+   }
    else
-      return entryPrice + slDistance;
+   {
+      //--- Place SL above upper band
+      return bb_upper + slDistance;
+   }
 }
-
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
 //+------------------------------------------------------------------+
 //| Calculate take profit                                            |
 //+------------------------------------------------------------------+
 double CalculateTakeProfit(ENUM_ORDER_TYPE orderType, double entryPrice)
+{
+   if(InpUseBBMiddleTP)
+   {
+      //--- Use BB middle band as target (mean reversion)
+      return bb_middle;
+   }
+   else
+   {
+      //--- Use fixed pip target
+      double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+      double tpDistance = InpFixedTPPips * 10 * point;
+      
+      if(orderType == ORDER_TYPE_BUY)
+         return entryPrice + tpDistance;
+      else
+         return entryPrice - tpDistance;
+   }
+}ouble CalculateTakeProfit(ENUM_ORDER_TYPE orderType, double entryPrice)
 {
    double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    
