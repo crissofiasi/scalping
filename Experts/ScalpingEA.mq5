@@ -58,7 +58,6 @@ double bb_upper, bb_middle, bb_lower;
 double ema_filter_current;
 
 int tradesCountToday = 0;
-int tradesCountToday = 0;
 datetime lastTradeDate = 0;
 
 //+------------------------------------------------------------------+
@@ -92,6 +91,12 @@ int OnInit()
          " - ", InpEndHour, ":", StringFormat("%02d", InpEndMinute), " GMT");
    Print("Risk per trade: ", InpRiskPercent, "%");
    Print("Max trades per session: ", InpMaxTradesPerSession);
+   Print("Take Profit: ", InpUseBBMiddleTP ? "BB Middle Band" : IntegerToString(InpFixedTPPips) + " pips");
+   Print("========================================");
+   
+   return(INIT_SUCCEEDED);
+}
+
 //+------------------------------------------------------------------+
 //| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
@@ -102,11 +107,6 @@ void OnDeinit(const int reason)
    IndicatorRelease(handleEMA_Filter);
    
    Print("Bollinger Band Bounce EA deinitialized");
-}  IndicatorRelease(handleEMA_Slow);
-   IndicatorRelease(handleEMA_Filter);
-   IndicatorRelease(handleATR);
-   
-   Print("ScalpingEA deinitialized");
 }
 
 //+------------------------------------------------------------------+
@@ -135,12 +135,10 @@ void OnTick()
    //--- Check for entry signals
    CheckForEntry();
 }
-
 //+------------------------------------------------------------------+
 //| Check if trading is allowed                                      |
 //+------------------------------------------------------------------+
-//| Check if trading is allowed                                      |
-//+------------------------------------------------------------------+
+bool IsTradingAllowed()----------------------------------------------+
 bool IsTradingAllowed()
 {
    //--- Check trading hours

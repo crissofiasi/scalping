@@ -65,7 +65,6 @@ void OnStart()
    
    //--- Deviation variations with standard 20 period
    settings[idx++] = TestBBConfiguration(rates, 20, 1.5);
-   settings[idx++] = TestBBConfiguration(rates, 20, 2.0);  // Standard
    settings[idx++] = TestBBConfiguration(rates, 20, 2.5);
    settings[idx++] = TestBBConfiguration(rates, 20, 3.0);
    
@@ -352,107 +351,6 @@ void SortByProfitFactor(BBSettings &settings[])
             BBSettings temp = settings[i];
             settings[i] = settings[j];
             settings[j] = temp;
-         }
-      }
-   }
-}
-//+------------------------------------------------------------------+
-         double tp = entry - (sl - entry) * 2;
-         
-         if(SimulateTrade(rates, i, false, entry, sl, tp, total_profit, total_loss))
-            result.winning_trades++;
-         else
-            result.losing_trades++;
-      }
-   }
-   
-   CalculateMetrics(result, total_profit, total_loss);
-   return result;
-}
-
-//+------------------------------------------------------------------+
-//| Simulate trade outcome                                           |
-//+------------------------------------------------------------------+
-bool SimulateTrade(const MqlRates &rates[], int entry_idx, bool is_buy, double entry, double sl, double tp, double &total_profit, double &total_loss)
-{
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   
-   //--- Look forward up to 50 bars
-   for(int i = entry_idx - 1; i >= MathMax(0, entry_idx - 50); i--)
-   {
-      if(is_buy)
-      {
-         if(rates[i].low <= sl)
-         {
-            total_loss += MathAbs(entry - sl) / point / 10;
-            return false;
-         }
-         if(rates[i].high >= tp)
-         {
-            total_profit += MathAbs(tp - entry) / point / 10;
-            return true;
-         }
-      }
-      else
-      {
-         if(rates[i].high >= sl)
-         {
-            total_loss += MathAbs(sl - entry) / point / 10;
-            return false;
-         }
-         if(rates[i].low <= tp)
-         {
-            total_profit += MathAbs(entry - tp) / point / 10;
-            return true;
-         }
-      }
-   }
-   
-   //--- Timeout - consider as loss
-   total_loss += InpMaxStopPips;
-   return false;
-}
-
-//+------------------------------------------------------------------+
-//| Check if London-NY session                                       |
-//+------------------------------------------------------------------+
-bool IsLondonNYSession(datetime time)
-{
-   MqlDateTime dt;
-   TimeToStruct(time, dt);
-   int hour = dt.hour;
-   return (hour >= 12 && hour < 16); // 12:00-16:00 GMT
-}
-
-//+------------------------------------------------------------------+
-//| Calculate metrics for pattern                                    |
-//+------------------------------------------------------------------+
-void CalculateMetrics(TradePattern &pattern, double total_profit, double total_loss)
-{
-   if(pattern.total_signals > 0)
-   {
-      pattern.win_rate = (double)pattern.winning_trades / pattern.total_signals * 100;
-      pattern.avg_profit = pattern.winning_trades > 0 ? total_profit / pattern.winning_trades : 0;
-      pattern.avg_loss = pattern.losing_trades > 0 ? total_loss / pattern.losing_trades : 0;
-      pattern.profit_factor = total_loss > 0 ? total_profit / total_loss : 0;
-   }
-}
-
-//+------------------------------------------------------------------+
-//| Sort patterns by profit factor                                   |
-//+------------------------------------------------------------------+
-void SortPatternsByProfitFactor(TradePattern &patterns[])
-{
-   int size = ArraySize(patterns);
-   for(int i = 0; i < size - 1; i++)
-   {
-      for(int j = i + 1; j < size; j++)
-      {
-         if(patterns[j].profit_factor > patterns[i].profit_factor)
-         {
-            TradePattern temp = patterns[i];
-            patterns[i] = patterns[j];
-            patterns[j] = temp;
          }
       }
    }
