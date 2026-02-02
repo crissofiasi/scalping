@@ -65,8 +65,8 @@ datetime lastTradeDate = 0;
 datetime lastCheckTime = 0;
 
 // Drawdown tracking
-double weeklyStartBalance = 0;
-double monthlyStartBalance = 0;
+double weeklyPeakBalance = 0;
+double monthlyPeakBalance = 0;
 datetime lastWeekReset = 0;
 datetime lastMonthReset = 0;
 
@@ -107,8 +107,8 @@ int OnInit()
    Print("========================================");
    
    //--- Initialize drawdown tracking
-   weeklyStartBalance = AccountInfoDouble(ACCOUNT_BALANCE);
-   monthlyStartBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   weeklyPeakBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   monthlyPeakBalance = AccountInfoDouble(ACCOUNT_BALANCE);
    lastWeekReset = TimeCurrent();
    lastMonthReset = TimeCurrent();
    
@@ -547,10 +547,10 @@ bool CheckDrawdownLimits()
    
    if(currentWeekStart != lastWeekReset)
    {
-      weeklyStartBalance = currentBalance;
+      weeklyPeakBalance = currentBalance;
       lastWeekReset = currentWeekStart;
       if(InpDebugMode)
-         Print("New week started - Weekly balance reset to: ", weeklyStartBalance);
+         Print("New week started - Weekly peak balance reset to: ", weeklyPeakBalance);
    }
    
    //--- Reset monthly tracking on new month
@@ -558,15 +558,30 @@ bool CheckDrawdownLimits()
    
    if(currentMonthStart != lastMonthReset)
    {
-      monthlyStartBalance = currentBalance;
+      monthlyPeakBalance = currentBalance;
       lastMonthReset = currentMonthStart;
       if(InpDebugMode)
-         Print("New month started - Monthly balance reset to: ", monthlyStartBalance);
+         Print("New month started - Monthly peak balance reset to: ", monthlyPeakBalance);
    }
    
-   //--- Calculate drawdowns
-   double weeklyDrawdown = ((weeklyStartBalance - currentBalance) / weeklyStartBalance) * 100.0;
-   double monthlyDrawdown = ((monthlyStartBalance - currentBalance) / monthlyStartBalance) * 100.0;
+   //--- Update peak balances if current balance is higher
+   if(currentBalance > weeklyPeakBalance)
+   {
+      weeklyPeakBalance = currentBalance;
+      if(InpDebugMode)
+         Print("New weekly peak balance: ", weeklyPeakBalance);
+   }
+   
+   if(currentBalance > monthlyPeakBalance)
+   {
+      monthlyPeakBalance = currentBalance;
+      if(InpDebugMode)
+         Print("New monthly peak balance: ", monthlyPeakBalance);
+   }
+   
+   //--- Calculate drawdowns from peak
+   double weeklyDrawdown = ((weeklyPeakBalance - currentBalance) / weeklyPeakBalance) * 100.0;
+   double monthlyDrawdown = ((monthlyPeakBalance - currentBalance) / monthlyPeakBalance) * 100.0;
    
    //--- Check weekly drawdown limit
    if(weeklyDrawdown >= InpMaxWeeklyDrawdownPercent)
@@ -576,7 +591,7 @@ bool CheckDrawdownLimits()
       {
          Print("*** WEEKLY DRAWDOWN LIMIT REACHED ***");
          Print("Weekly DD: ", DoubleToString(weeklyDrawdown, 2), "% (Max: ", InpMaxWeeklyDrawdownPercent, "%)");
-         Print("Start Balance: ", weeklyStartBalance, " Current: ", currentBalance);
+         Print("Peak Balance: ", weeklyPeakBalance, " Current: ", currentBalance);
          Print("Trading stopped for this week");
          printedWeeklyDD = true;
       }
@@ -591,7 +606,7 @@ bool CheckDrawdownLimits()
       {
          Print("*** MONTHLY DRAWDOWN LIMIT REACHED ***");
          Print("Monthly DD: ", DoubleToString(monthlyDrawdown, 2), "% (Max: ", InpMaxMonthlyDrawdownPercent, "%)");
-         Print("Start Balance: ", monthlyStartBalance, " Current: ", currentBalance);
+         Print("Peak Balance: ", monthlyPeakBalance, " Current: ", currentBalance);
          Print("Trading stopped for this month");
          printedMonthlyDD = true;
       }
