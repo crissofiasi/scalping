@@ -1,10 +1,10 @@
 //+------------------------------------------------------------------+
-//|                                                   ScalpingEA.mq5 |
+//|                                                ScalpingEA_V2.mq5 |
 //|                              Bollinger Band Bounce Scalping EA   |
 //|                                                    February 2026 |
 //+------------------------------------------------------------------+
 #property copyright "Scalping EA - Bollinger Bounce"
-#property version   "2.00"
+#property version   "2.10"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -38,10 +38,15 @@ input double   InpMinBandDistance = 0.0;       // Min Distance to Band (0=disabl
 //=== Risk Management ===
 input group "=== Risk Management ==="
 input double   InpRiskPercent = 0.8;           // Risk Per Trade (%)
-input int      InpStopLossPips = 5;            // Stop Loss Beyond Band (pips)
+input double   InpStopLossPips = 5.0;          // Stop Loss Beyond Band (pips)
 input bool     InpUseBBMiddleTP = true;        // Use BB Middle as Take Profit
-input int      InpFixedTPPips = 10;            // Fixed TP if not using BB Middle (pips)
+input double   InpFixedTPPips = 10.0;          // Fixed TP if not using BB Middle (pips)
 input double   InpMinRiskReward = 1.5;         // Minimum Risk:Reward Ratio
+
+//=== Commission Settings ===
+input group "=== Commission Settings ==="
+input double   InpCommissionPerLot = 7.0;      // Commission per Lot (in account currency)
+input double   InpTPPercentForSLAdjust = 50.0; // TP % Reached to Adjust SL (0=disable)
 
 //=== Trade Limits ===
 input group "=== Trade Limits ==="
@@ -69,6 +74,40 @@ double weeklyPeakBalance = 0;
 double monthlyPeakBalance = 0;
 datetime lastWeekReset = 0;
 datetime lastMonthReset = 0;
+
+// Position tracking for SL adjustment
+ulong lastPositionTicket = 0;
+bool slAdjustedForPosition = false;
+
+//+------------------------------------------------------------------+
+//| Helper function to convert pips to price distance                |
+//+------------------------------------------------------------------+
+double PipsToPrice(double pips)
+{
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   
+   //--- Determine pip size based on digits
+   //--- For 3 or 5 digit quotes: 1 pip = 10 points
+   //--- For 2 or 4 digit quotes: 1 pip = 1 point
+   double pipValue = (digits == 3 || digits == 5) ? 10 * point : point;
+   
+   return pips * pipValue;
+}
+
+//+------------------------------------------------------------------+
+//| Helper function to convert price distance to pips                |
+//+------------------------------------------------------------------+
+double PriceToPips(double priceDistance)
+{
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   
+   //--- Determine pip size based on digits
+   double pipValue = (digits == 3 || digits == 5) ? 10 * point : point;
+   
+   return priceDistance / pipValue;
+}
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -102,6 +141,8 @@ int OnInit()
    Print("Risk per trade: ", InpRiskPercent, "%");
    Print("Max trades per session: ", InpMaxTradesPerSession);
    Print("Take Profit: ", InpUseBBMiddleTP ? "BB Middle Band" : IntegerToString(InpFixedTPPips) + " pips");
+   Print("Commission: ", InpCommissionPerLot, " per lot");
+   Print("SL Adjustment: Triggered at ", InpTPPercentForSLAdjust, "% of TP (0=disabled)");
    Print("Max Weekly Drawdown: ", InpMaxWeeklyDrawdownPercent, "%");
    Print("Max Monthly Drawdown: ", InpMaxMonthlyDrawdownPercent, "%");
    Print("========================================");
@@ -286,7 +327,7 @@ void CheckForEntry()
       Print("BB Middle: ", bb_middle);
       Print("BB Lower: ", bb_lower);
       Print("EMA Filter: ", ema_filter_current);
-      Print("Band Width: ", DoubleToString((bb_upper - bb_lower) / point / 10, 1), " pips");
+      Print("Band Width: ", DoubleToString(PriceToPips(bb_upper - bb_lower), 2), " pips");
       lastDebugTime = TimeCurrent();
    }
    
@@ -344,9 +385,10 @@ void OpenTrade(ENUM_ORDER_TYPE orderType)
    double slDistance = MathAbs(price - sl);
    double tpDistance = MathAbs(tp - price);
    
-   if(tpDistance / slDistance < InpMinRiskReward)
+   double profitFactor = (slDistance > 0.0) ? (tpDistance / slDistance) : 0.0;
+   if(profitFactor < InpMinRiskReward)
    {
-      Print("Trade rejected: Risk:Reward ratio too low");
+      Print("Trade rejected: Risk:Reward ratio too low. Profit factor: ", DoubleToString(profitFactor, 2));
       return;
    }
    
@@ -398,8 +440,7 @@ void OpenTrade(ENUM_ORDER_TYPE orderType)
 //+------------------------------------------------------------------+
 double CalculateStopLoss(ENUM_ORDER_TYPE orderType, double entryPrice)
 {
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   double slDistance = InpStopLossPips * 10 * point;
+   double slDistance = PipsToPrice(InpStopLossPips);
    
    if(orderType == ORDER_TYPE_BUY)
    {
@@ -426,8 +467,7 @@ double CalculateTakeProfit(ENUM_ORDER_TYPE orderType, double entryPrice)
    else
    {
       //--- Use fixed pip target
-      double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-      double tpDistance = InpFixedTPPips * 10 * point;
+      double tpDistance = PipsToPrice(InpFixedTPPips);
       
       if(orderType == ORDER_TYPE_BUY)
          return entryPrice + tpDistance;
@@ -621,8 +661,145 @@ bool CheckDrawdownLimits()
 //+------------------------------------------------------------------+
 void ManageOpenPosition()
 {
-   // Placeholder for future enhancements
-   // Could add trailing stop, breakeven logic, etc.
+   //--- Get current position
+   if(!PositionSelect(_Symbol))
+      return;
+   
+   ulong positionTicket = PositionGetTicket(0);
+   
+   //--- Reset SL adjustment flag for new position
+   if(positionTicket != lastPositionTicket)
+   {
+      lastPositionTicket = positionTicket;
+      slAdjustedForPosition = false;
+   }
+   
+   //--- Check if we should adjust stoploss based on TP progress
+   if(InpTPPercentForSLAdjust > 0 && !slAdjustedForPosition)
+   {
+      AdjustStopLossForCommission();
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Adjust stop loss to cover commission when TP% is reached         |
+//+------------------------------------------------------------------+
+void AdjustStopLossForCommission()
+{
+   if(!PositionSelect(_Symbol))
+      return;
+   
+   double entryPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+   double currentSL = PositionGetDouble(POSITION_SL);
+   double currentTP = PositionGetDouble(POSITION_TP);
+   double currentPrice = PositionGetDouble(POSITION_PRICE_CURRENT);
+   ENUM_POSITION_TYPE posType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+   
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   double tickValue = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tickSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+   
+   //--- Calculate distance and progress
+   double tpDistance, priceDistance, tpProgress;
+   double newSL = currentSL;
+   bool shouldAdjust = false;
+   
+   if(posType == POSITION_TYPE_BUY)
+   {
+      tpDistance = currentTP - entryPrice;
+      priceDistance = currentPrice - entryPrice;
+      tpProgress = (tpDistance > 0) ? (priceDistance / tpDistance) * 100 : 0;
+      
+      //--- Check if price has reached the TP percentage
+      if(tpProgress >= InpTPPercentForSLAdjust)
+      {
+         //--- Calculate commission in pips
+         double commissionPips = CalculateCommissionInPips(posType);
+         
+         //--- Move SL above entry to cover commission
+         newSL = entryPrice + PipsToPrice(commissionPips);
+         
+         //--- Only adjust if new SL is higher than current SL
+         if(newSL > currentSL)
+         {
+            shouldAdjust = true;
+            
+            if(InpDebugMode)
+            {
+               Print("TP Progress: ", DoubleToString(tpProgress, 1), "% - Adjusting SL");
+               Print("Old SL: ", currentSL, " New SL: ", newSL);
+               Print("Commission pips to cover: ", DoubleToString(commissionPips, 2));
+            }
+         }
+      }
+   }
+   else if(posType == POSITION_TYPE_SELL)
+   {
+      tpDistance = entryPrice - currentTP;
+      priceDistance = entryPrice - currentPrice;
+      tpProgress = (tpDistance > 0) ? (priceDistance / tpDistance) * 100 : 0;
+      
+      //--- Check if price has reached the TP percentage
+      if(tpProgress >= InpTPPercentForSLAdjust)
+      {
+         //--- Calculate commission in pips
+         double commissionPips = CalculateCommissionInPips(posType);
+         
+         //--- Move SL below entry to cover commission
+         newSL = entryPrice - PipsToPrice(commissionPips);
+         
+         //--- Only adjust if new SL is lower than current SL
+         if(newSL < currentSL)
+         {
+            shouldAdjust = true;
+            
+            if(InpDebugMode)
+            {
+               Print("TP Progress: ", DoubleToString(tpProgress, 1), "% - Adjusting SL");
+               Print("Old SL: ", currentSL, " New SL: ", newSL);
+               Print("Commission pips to cover: ", DoubleToString(commissionPips, 2));
+            }
+         }
+      }
+   }
+   
+   //--- If we should adjust, attempt the modification
+   if(shouldAdjust)
+   {
+      newSL = NormalizeDouble(newSL, _Digits);
+      
+      if(trade.PositionModify(_Symbol, newSL, currentTP))
+      {
+         Print("SL adjusted successfully to cover commission: ", newSL);
+         slAdjustedForPosition = true;
+      }
+      else
+      {
+         Print("Failed to adjust SL: ", trade.ResultRetcodeDescription());
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Calculate commission in pips based on position size              |
+//+------------------------------------------------------------------+
+double CalculateCommissionInPips(ENUM_POSITION_TYPE posType)
+{
+   double volume = PositionGetDouble(POSITION_VOLUME);
+   
+   double tickValue = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tickSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+   
+   //--- Calculate total commission for the position (commission per lot * number of lots)
+   double totalCommission = InpCommissionPerLot * volume;
+   
+   //--- Convert commission to pips
+   //--- Commission in currency / (value per pip) = distance in pips
+   double pipDistance = PipsToPrice(1.0); // Get the price value of 1 pip
+   double valuePerPip = (pipDistance / tickSize) * tickValue * volume;
+   double commissionInPips = totalCommission / valuePerPip;
+   
+   return commissionInPips;
 }
 
 //+------------------------------------------------------------------+
