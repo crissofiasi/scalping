@@ -12,56 +12,56 @@
 //--- Input Parameters
 //=== Trading Hours ===
 input group "=== Trading Hours (GMT) ==="
-input int      InpStartHour = 12;              // Start Hour (GMT)
+input int      InpStartHour = 0;               // Start Hour (GMT)
 input int      InpStartMinute = 0;             // Start Minute
-input int      InpEndHour = 16;                // End Hour (GMT)
-input int      InpEndMinute = 0;               // End Minute
-input bool     InpAvoidAsianSession = true;    // Avoid Asian Session
+input int      InpEndHour = 23;                // End Hour (GMT)
+input int      InpEndMinute = 59;              // End Minute
+input bool     InpAvoidAsianSession = false;   // Avoid Asian Session
 
 //=== Bollinger Bands Settings ===
 input group "=== Bollinger Bands ==="
-input int      InpBB_Period = 8;               // BB Period
-input double   InpBB_Deviation = 2.0;          // BB Standard Deviation
+input int      InpBB_Period = 3;               // BB Period
+input double   InpBB_Deviation = 1.5;          // BB Standard Deviation
 input ENUM_APPLIED_PRICE InpBB_Price = PRICE_CLOSE;  // BB Applied Price
 input ENUM_TIMEFRAMES InpTimeframe = PERIOD_M1; // Timeframe
 
 //=== ADX Trend Mode ===
 input group "=== ADX Trend Mode ==="
 input bool     InpUseADXTrendMode = true;      // Use ADX Trend Scalping Mode
-input int      InpADX_Period = 14;             // ADX Period
-input double   InpADX_Threshold = 20.0;        // ADX Strong Trend Threshold
+input int      InpADX_Period = 10;             // ADX Period
+input double   InpADX_Threshold = 75.0;        // ADX Strong Trend Threshold
 input ENUM_TIMEFRAMES InpADX_Timeframe = PERIOD_M1; // ADX Timeframe
 enum ENUM_TREND_SCALP_SIGNAL
    {
     TREND_SCALP_CLOSE = 0, // Use Close beyond BB
     TREND_SCALP_HIGH_LOW = 1 // Use High/Low beyond BB
    };
-input ENUM_TREND_SCALP_SIGNAL InpTrendScalpSignal = TREND_SCALP_CLOSE; // Trend scalp signal source
+input ENUM_TREND_SCALP_SIGNAL InpTrendScalpSignal = TREND_SCALP_HIGH_LOW; // Trend scalp signal source
 
 //=== Entry Settings ===
 input group "=== Entry Confirmation ==="
 input bool     InpRequireCandleClose = true;   // Require Candle Close Above/Below Band
-input double   InpMinBandDistance = 0.0;       // Min Distance to Band (0=disable, pips)
+input double   InpMinBandDistance = 0.3;       // Min Distance to Band (0=disable, pips)
 
 //=== Risk Management ===
 input group "=== Risk Management ==="
 input double   InpRiskPercent = 0.8;           // Risk Per Trade (%)
-input double   InpStopLossPips = 5.0;          // Stop Loss Beyond Band (pips)
+input double   InpStopLossPips = 3.5;          // Stop Loss Beyond Band (pips)
 input bool     InpUseBBMiddleTP = true;        // Use BB Middle as Take Profit
 input double   InpFixedTPPips = 10.0;          // Fixed TP if not using BB Middle (pips)
 input double   InpMinRiskReward = 1.5;         // Minimum Risk:Reward Ratio
 
 //=== Commission Settings ===
 input group "=== Commission Settings ==="
-input double   InpCommissionPerLot = 7.0;      // Commission per Lot (in account currency)
-input double   InpTPPercentForSLAdjust = 50.0; // TP % Reached to Adjust SL (0=disable)
+input double   InpCommissionPerLot = 4.0;      // Commission per Lot (in account currency)
+input double   InpTPPercentForSLAdjust = 80.0; // TP % Reached to Adjust SL (0=disable)
 
 //=== Trade Limits ===
 input group "=== Trade Limits ==="
 input int      InpMaxTradesPerSession = 100;   // Max Trades Per Session
-input int      InpMaxLossesPerSession = 2;     // Max Losing Trades Per Session
-input double   InpMaxWeeklyDrawdownPercent = 5.0;  // Max Weekly Drawdown (%)
-input double   InpMaxMonthlyDrawdownPercent = 10.0; // Max Monthly Drawdown (%)
+input int      InpMaxLossesPerSession = 4;     // Max Losing Trades Per Session
+input double   InpMaxWeeklyDrawdownPercent = 8.0;  // Max Weekly Drawdown (%)
+input double   InpMaxMonthlyDrawdownPercent = 15.0; // Max Monthly Drawdown (%)
 input int      InpMagicNumber = 123456;        // Magic Number
 input bool     InpDebugMode = true;            // Debug Mode (verbose logging)
 
