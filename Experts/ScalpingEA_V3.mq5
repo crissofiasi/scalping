@@ -89,6 +89,7 @@ int tradesCountToday = 0;
 int lossesCountToday = 0;
 datetime lastTradeDate = 0;
 datetime lastCheckTime = 0;
+datetime lastTradeBarTime = 0;  // Track last bar where trade was opened
 
 // Drawdown tracking
 double weeklyPeakBalance = 0;
@@ -475,6 +476,15 @@ void CheckForEntry()
 //+------------------------------------------------------------------+
 void OpenAveragingPosition(ENUM_ORDER_TYPE orderType)
 {
+   //--- Check if already traded on this bar
+   datetime currentBarTime = iTime(_Symbol, InpTimeframe, 0);
+   if(currentBarTime == lastTradeBarTime)
+   {
+      if(InpDebugMode)
+         Print("Averaging position skipped: Already traded on this bar");
+      return;
+   }
+   
    double price = (orderType == ORDER_TYPE_BUY) ? 
                   SymbolInfoDouble(_Symbol, SYMBOL_ASK) : 
                   SymbolInfoDouble(_Symbol, SYMBOL_BID);
@@ -536,6 +546,7 @@ void OpenAveragingPosition(ENUM_ORDER_TYPE orderType)
          Print("Total ", (orderType == ORDER_TYPE_BUY) ? "BUY" : "SELL", " positions: ", currentCount + 1);
       }
       tradesCountToday++;
+      lastTradeBarTime = currentBarTime;  // Mark this bar as traded
       
       //--- Update position tracking and TPs
       UpdatePositionTracking();
@@ -552,6 +563,15 @@ void OpenAveragingPosition(ENUM_ORDER_TYPE orderType)
 //+------------------------------------------------------------------+
 void OpenTrade(ENUM_ORDER_TYPE orderType, bool isTrendScalp)
 {
+   //--- Check if already traded on this bar
+   datetime currentBarTime = iTime(_Symbol, InpTimeframe, 0);
+   if(currentBarTime == lastTradeBarTime)
+   {
+      if(InpDebugMode)
+         Print("Trade skipped: Already traded on this bar");
+      return;
+   }
+   
    double price = (orderType == ORDER_TYPE_BUY) ? 
                   SymbolInfoDouble(_Symbol, SYMBOL_ASK) : 
                   SymbolInfoDouble(_Symbol, SYMBOL_BID);
@@ -594,6 +614,7 @@ void OpenTrade(ENUM_ORDER_TYPE orderType, bool isTrendScalp)
       {
          Print("BUY order opened: Lot=", lotSize, " SL=", sl, " TP=", tp);
          tradesCountToday++;
+         lastTradeBarTime = currentBarTime;  // Mark this bar as traded
       }
       else
       {
@@ -606,6 +627,7 @@ void OpenTrade(ENUM_ORDER_TYPE orderType, bool isTrendScalp)
       {
          Print("SELL order opened: Lot=", lotSize, " SL=", sl, " TP=", tp);
          tradesCountToday++;
+         lastTradeBarTime = currentBarTime;  // Mark this bar as traded
       }
       else
       {
