@@ -28,8 +28,8 @@ input double   InpMaxLotSize = 0.5;            // Maximum Lot Size (any single p
 
 //=== Take Profit Settings ===
 input group "=== Take Profit ==="
-input double   InpTakeProfitPips = 15.0;       // Take Profit (pips from average entry)
-input bool     InpCloseAllAtBreakeven = true;  // Close all positions at breakeven
+input bool     InpUseOppositeBB_TP = true;     // Use Opposite BB as Take Profit
+input bool     InpUseDynamicBB_TP = true;      // Adjust TP to closer BB if still profitable
 
 //=== Risk Management ===
 input group "=== Risk Management ==="
@@ -120,7 +120,7 @@ int OnInit()
    Print("Grid Step: ", InpGridStepPips, " pips");
    Print("Volume Multiplier: ", InpVolumeMultiplier);
    Print("Base Lot: ", InpBaseLotSize, " | Max Lot: ", InpMaxLotSize);
-   Print("Take Profit: ", InpTakeProfitPips, " pips from average");
+   Print("Take Profit: Opposite BB Band", InpUseDynamicBB_TP ? " (dynamic adjustment enabled)" : "");
    Print("Close Farthest When Max: ", InpCloseFarthestWhenMaxReached ? "Yes" : "No");
    Print("========================================");
    
@@ -450,66 +450,43 @@ void UpdatePositionTP(bool isBuy)
    
    double avgEntry = weightedPrice / totalLots;
    
-   // Calculate TP
+   // Calculate TP - Use opposite BB band
    double newTP;
+   double oppositeBB = isBuy ? bb_upper : bb_lower;
    
-   if(InpCloseAllAtBreakeven)
+   if(InpUseOppositeBB_TP)
    {
-      // TP at breakeven (average entry)
-      newTP = avgEntry;
+      // Primary TP: opposite BB band (BUY → upper BB, SELL → lower BB)
+      newTP = oppositeBB;
+      
+      // Optional: if dynamic adjustment enabled and BB moved closer to entry
+      if(InpUseDynamicBB_TP)
+      {
+         // Ensure TP is still profitable
+         bool bbIsProfitable = isBuy ? (oppositeBB > avgEntry) : (oppositeBB < avgEntry);
+         
+         if(!bbIsProfitable)
+         {
+            // BB crossed average entry - use breakeven as minimum TP
+            newTP = avgEntry;
+            
+            if(InpDebugMode)
+            {
+               static datetime lastPrint = 0;
+               if(TimeCurrent() - lastPrint > 60)
+               {
+                  Print(isBuy ? "BUY" : "SELL", " TP set to breakeven - opposite BB not profitable: ",
+                        DoubleToString(avgEntry, _Digits));
+                  lastPrint = TimeCurrent();
+               }
+            }
+         }
+      }
    }
    else
    {
-      // TP at average + profit target
-      if(isBuy)
-         newTP = avgEntry + PipsToPrice(InpTakeProfitPips);
-      else
-         newTP = avgEntry - PipsToPrice(InpTakeProfitPips);
-   }
-   
-   // Check if opposite BB is closer but still profitable
-   double oppositeBB = isBuy ? bb_upper : bb_lower;
-   
-   bool bbIsProfitable = isBuy ? (oppositeBB > avgEntry) : (oppositeBB < avgEntry);
-   
-   if(bbIsProfitable)
-   {
-      if(isBuy)
-      {
-         // For BUY: use opposite BB if it's closer (lower) than calculated TP
-         if(oppositeBB < newTP)
-         {
-            newTP = oppositeBB;
-            if(InpDebugMode)
-            {
-               static datetime lastPrint = 0;
-               if(TimeCurrent() - lastPrint > 60)
-               {
-                  Print("BUY TP adjusted to upper BB: ", DoubleToString(newTP, _Digits), 
-                        " (closer than ", InpCloseAllAtBreakeven ? "breakeven" : "target", ")");
-                  lastPrint = TimeCurrent();
-               }
-            }
-         }
-      }
-      else
-      {
-         // For SELL: use opposite BB if it's closer (higher) than calculated TP
-         if(oppositeBB > newTP)
-         {
-            newTP = oppositeBB;
-            if(InpDebugMode)
-            {
-               static datetime lastPrint = 0;
-               if(TimeCurrent() - lastPrint > 60)
-               {
-                  Print("SELL TP adjusted to lower BB: ", DoubleToString(newTP, _Digits),
-                        " (closer than ", InpCloseAllAtBreakeven ? "breakeven" : "target", ")");
-                  lastPrint = TimeCurrent();
-               }
-            }
-         }
-      }
+      // Fallback: breakeven
+      newTP = avgEntry;
    }
    
    newTP = NormalizeDouble(newTP, _Digits);
