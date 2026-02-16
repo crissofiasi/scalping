@@ -47,9 +47,22 @@ input double   InpMinBandDistance = 0.3;       // Min Distance to Band (0=disabl
 input group "=== Risk Management ==="
 input double   InpRiskPercent = 0.8;           // Risk Per Trade (%)
 input double   InpStopLossPips = 3.5;          // Stop Loss Beyond Band (pips)
-input bool     InpUseBBMiddleTP = true;        // Use BB Middle as Take Profit
-input double   InpFixedTPPips = 10.0;          // Fixed TP if not using BB Middle (pips)
+enum ENUM_TP_MODE
+   {
+    TP_FIXED_PIPS = 0,      // Fixed Pips
+    TP_BB_MIDDLE = 1,       // BB Middle (mean reversion)
+    TP_OPPOSITE_BAND = 2    // Opposite BB Band (full band width)
+   };
+input ENUM_TP_MODE InpTPMode = TP_BB_MIDDLE;   // Take Profit Mode
+input double   InpFixedTPPips = 10.0;          // Fixed TP (pips) - used if TP_FIXED_PIPS
 input double   InpMinRiskReward = 1.5;         // Minimum Risk:Reward Ratio
+
+//=== Averaging Strategy ===
+input group "=== Averaging Strategy ==="
+input bool     InpUseAveraging = false;        // Use Averaging (add positions on drawdown)
+input int      InpMaxPositionsPerSide = 3;     // Max Positions Per Side
+input double   InpAveragingStepPips = 10.0;    // Distance Between Positions (pips)
+input double   InpAveragingMultiplier = 1.5;   // Volume Multiplier for each position (1.0=flat, 2.0=double)
 
 //=== Commission Settings ===
 input group "=== Commission Settings ==="
@@ -86,6 +99,20 @@ datetime lastMonthReset = 0;
 // Position tracking for SL adjustment
 ulong lastPositionTicket = 0;
 bool slAdjustedForPosition = false;
+
+// Averaging position tracking
+struct PositionInfo
+{
+   ulong ticket;
+   double openPrice;
+   double lotSize;
+   bool isBuy;
+};
+
+PositionInfo buyPositions[];
+PositionInfo sellPositions[];
+int buyPositionCount = 0;
+int sellPositionCount = 0;
 
 //+------------------------------------------------------------------+
 //| Helper function to convert pips to price distance                |
@@ -150,7 +177,11 @@ int OnInit()
          " - ", InpEndHour, ":", StringFormat("%02d", InpEndMinute), " GMT");
    Print("Risk per trade: ", InpRiskPercent, "%");
    Print("Max trades per session: ", InpMaxTradesPerSession);
-   Print("Take Profit: ", InpUseBBMiddleTP ? "BB Middle Band" : IntegerToString(InpFixedTPPips) + " pips");
+   string tpMode = "Unknown";
+   if(InpTPMode == TP_FIXED_PIPS) tpMode = DoubleToString(InpFixedTPPips, 1) + " pips";
+   else if(InpTPMode == TP_BB_MIDDLE) tpMode = "BB Middle (mean reversion)";
+   else if(InpTPMode == TP_OPPOSITE_BAND) tpMode = "Opposite BB Band (full width)";
+   Print("Take Profit: ", tpMode);
    Print("Commission: ", InpCommissionPerLot, " per lot");
    Print("SL Adjustment: Triggered at ", InpTPPercentForSLAdjust, "% of TP (0=disabled)");
    Print("Max Weekly Drawdown: ", InpMaxWeeklyDrawdownPercent, "%");
@@ -191,11 +222,15 @@ void OnTick()
    if(!UpdateIndicators())
       return;
    
-   //--- Check for existing positions
+   //--- Update position tracking for averaging
+   if(InpUseAveraging)
+      UpdatePositionTracking();
+   
+   //--- Manage existing positions
    if(PositionSelect(_Symbol))
    {
       ManageOpenPosition();
-      return;
+      //--- Don't return - allow averaging even with open positions
    }
    
    //--- Check trading conditions
@@ -362,7 +397,12 @@ void CheckForEntry()
             Print("*** STRONG TREND BUY (ADX) ***");
             Print("Signal price: ", trendBuyPrice, " above BB Upper: ", bb_upper);
          }
-         OpenTrade(ORDER_TYPE_BUY, true);
+         
+         if(buyPositionCount == 0)
+            OpenTrade(ORDER_TYPE_BUY, true);
+         else if(InpUseAveraging && ShouldAddAveragingPosition(true))
+            OpenAveragingPosition(ORDER_TYPE_BUY);
+         
          return;
       }
 
@@ -373,7 +413,12 @@ void CheckForEntry()
             Print("*** STRONG TREND SELL (ADX) ***");
             Print("Signal price: ", trendSellPrice, " below BB Lower: ", bb_lower);
          }
-         OpenTrade(ORDER_TYPE_SELL, true);
+         
+         if(sellPositionCount == 0)
+            OpenTrade(ORDER_TYPE_SELL, true);
+         else if(InpUseAveraging && ShouldAddAveragingPosition(false))
+            OpenAveragingPosition(ORDER_TYPE_SELL);
+         
          return;
       }
 
@@ -393,7 +438,12 @@ void CheckForEntry()
          Print("Low: ", rates[0].low, " touched band: ", bb_lower);
          Print("Close: ", rates[0].close, " above band");
       }
-      OpenTrade(ORDER_TYPE_BUY, false);
+      
+      if(buyPositionCount == 0)
+         OpenTrade(ORDER_TYPE_BUY, false);
+      else if(InpUseAveraging && ShouldAddAveragingPosition(true))
+         OpenAveragingPosition(ORDER_TYPE_BUY);
+      
       return;
    }
    
@@ -410,8 +460,90 @@ void CheckForEntry()
          Print("High: ", rates[0].high, " touched band: ", bb_upper);
          Print("Close: ", rates[0].close, " below band");
       }
-      OpenTrade(ORDER_TYPE_SELL, false);
+      
+      if(sellPositionCount == 0)
+         OpenTrade(ORDER_TYPE_SELL, false);
+      else if(InpUseAveraging && ShouldAddAveragingPosition(false))
+         OpenAveragingPosition(ORDER_TYPE_SELL);
+      
       return;
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Open averaging position                                          |
+//+------------------------------------------------------------------+
+void OpenAveragingPosition(ENUM_ORDER_TYPE orderType)
+{
+   double price = (orderType == ORDER_TYPE_BUY) ? 
+                  SymbolInfoDouble(_Symbol, SYMBOL_ASK) : 
+                  SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   
+   //--- Get current position count
+   int currentCount = (orderType == ORDER_TYPE_BUY) ? buyPositionCount : sellPositionCount;
+   
+   //--- Calculate lot size with volume multiplier
+   //--- Position 1: base lot
+   //--- Position 2: base * multiplier
+   //--- Position 3: base * multiplier^2
+   double baseLot = (orderType == ORDER_TYPE_BUY) ? buyPositions[0].lotSize : sellPositions[0].lotSize;
+   double lotSize = baseLot;
+   
+   //--- Apply multiplier for each additional position
+   for(int i = 1; i < currentCount; i++)
+   {
+      lotSize *= InpAveragingMultiplier;
+   }
+   
+   //--- Check broker limits
+   double minLot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   double maxLot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
+   
+   lotSize = NormalizeDouble(lotSize, 2);
+   lotSize = MathMax(minLot, MathMin(maxLot, lotSize));
+   
+   if(InpDebugMode)
+   {
+      Print("Calculating averaging lot: Base=", baseLot, " x ", InpAveragingMultiplier, 
+            "^", currentCount, " = ", lotSize);
+   }
+   
+   //--- Use same SL/TP calculation
+   double sl = CalculateStopLoss(orderType, price, false);
+   double tp = price; // Will be updated to breakeven
+   
+   //--- Normalize values
+   sl = NormalizeDouble(sl, _Digits);
+   tp = NormalizeDouble(tp, _Digits);
+   
+   //--- Execute trade
+   string comment = StringFormat("BB_Avg_%d_%s", currentCount + 1, (orderType == ORDER_TYPE_BUY) ? "BUY" : "SELL");
+   
+   bool result = false;
+   if(orderType == ORDER_TYPE_BUY)
+      result = trade.Buy(lotSize, _Symbol, price, sl, tp, comment);
+   else
+      result = trade.Sell(lotSize, _Symbol, price, sl, tp, comment);
+   
+   if(result)
+   {
+      if(InpDebugMode)
+      {
+         Print("=== Averaging Position Added ===");
+         Print("Position #", currentCount + 1, " of ", InpMaxPositionsPerSide);
+         Print("Lot Size: ", lotSize, " (", DoubleToString(InpAveragingMultiplier, 2), "x multiplier)");
+         Print("Entry: ", price);
+         Print("Total ", (orderType == ORDER_TYPE_BUY) ? "BUY" : "SELL", " positions: ", currentCount + 1);
+      }
+      tradesCountToday++;
+      
+      //--- Update position tracking and TPs
+      UpdatePositionTracking();
+      UpdateAveragingTP(orderType == ORDER_TYPE_BUY);
+   }
+   else
+   {
+      Print("Averaging position failed: ", trade.ResultRetcodeDescription());
    }
 }
 
@@ -520,12 +652,23 @@ double CalculateTakeProfit(ENUM_ORDER_TYPE orderType, double entryPrice, bool is
          return entryPrice - (slDistance * InpMinRiskReward);
    }
 
-   if(InpUseBBMiddleTP)
+   //--- Mean reversion mode TP options
+   if(InpTPMode == TP_BB_MIDDLE)
    {
-      //--- Use BB middle band as target (mean reversion)
+      //--- Use BB middle band as target (mean reversion to center)
       return bb_middle;
    }
-   else
+   else if(InpTPMode == TP_OPPOSITE_BAND)
+   {
+      //--- Use opposite band as target (full band width profit)
+      //--- Buy at lower band -> TP at upper band
+      //--- Sell at upper band -> TP at lower band
+      if(orderType == ORDER_TYPE_BUY)
+         return bb_upper;
+      else
+         return bb_lower;
+   }
+   else // TP_FIXED_PIPS
    {
       //--- Use fixed pip target
       double tpDistance = PipsToPrice(InpFixedTPPips);
@@ -561,6 +704,170 @@ double CalculateLotSize(double stopLoss, double entryPrice)
    
    return lotSize;
 }
+
+//+------------------------------------------------------------------+
+//| Update position tracking arrays                                  |
+//+------------------------------------------------------------------+
+void UpdatePositionTracking()
+{
+   buyPositionCount = 0;
+   sellPositionCount = 0;
+   ArrayResize(buyPositions, InpMaxPositionsPerSide);
+   ArrayResize(sellPositions, InpMaxPositionsPerSide);
+   
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+      
+      if(PositionGetInteger(POSITION_MAGIC) != InpMagicNumber) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+      
+      bool isBuy = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY);
+      double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+      double lots = PositionGetDouble(POSITION_VOLUME);
+      
+      if(isBuy && buyPositionCount < InpMaxPositionsPerSide)
+      {
+         buyPositions[buyPositionCount].ticket = ticket;
+         buyPositions[buyPositionCount].openPrice = openPrice;
+         buyPositions[buyPositionCount].lotSize = lots;
+         buyPositions[buyPositionCount].isBuy = true;
+         buyPositionCount++;
+      }
+      else if(!isBuy && sellPositionCount < InpMaxPositionsPerSide)
+      {
+         sellPositions[sellPositionCount].ticket = ticket;
+         sellPositions[sellPositionCount].openPrice = openPrice;
+         sellPositions[sellPositionCount].lotSize = lots;
+         sellPositions[sellPositionCount].isBuy = false;
+         sellPositionCount++;
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Check if should add averaging position with BB bounce validation |
+//+------------------------------------------------------------------+
+bool ShouldAddAveragingPosition(bool isBuy)
+{
+   if(!InpUseAveraging)
+      return false;
+   
+   int currentCount = isBuy ? buyPositionCount : sellPositionCount;
+   
+   if(currentCount == 0 || currentCount >= InpMaxPositionsPerSide)
+      return false;
+   
+   //--- Get last position entry price
+   double lastEntryPrice = isBuy ? buyPositions[currentCount - 1].openPrice : sellPositions[currentCount - 1].openPrice;
+   double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   
+   //--- Check if price moved against us by averaging step
+   double requiredDistance = PipsToPrice(InpAveragingStepPips);
+   
+   bool priceMovedAgainstUs = false;
+   
+   if(isBuy)
+   {
+      //--- For buy: price should drop below last entry
+      if(currentPrice <= lastEntryPrice - requiredDistance)
+         priceMovedAgainstUs = true;
+   }
+   else
+   {
+      //--- For sell: price should rise above last entry
+      if(currentPrice >= lastEntryPrice + requiredDistance)
+         priceMovedAgainstUs = true;
+   }
+   
+   if(!priceMovedAgainstUs)
+      return false;
+   
+   //--- Additional validation: Check BB bounce condition
+   //--- For BUY averaging: price should be near or below lower BB
+   //--- For SELL averaging: price should be near or above upper BB
+   
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   if(CopyRates(_Symbol, InpTimeframe, 0, 2, rates) < 2)
+      return false;
+   
+   double minDistance = PipsToPrice(InpMinBandDistance);
+   
+   if(isBuy)
+   {
+      //--- For BUY: confirm we're at lower BB (stronger mean reversion signal)
+      bool nearLowerBand = (rates[0].low <= bb_lower) || (MathAbs(rates[0].low - bb_lower) <= minDistance);
+      if(!nearLowerBand)
+      {
+         if(InpDebugMode)
+            Print("BUY averaging skipped: not near lower BB. Price: ", currentPrice, " BB Lower: ", bb_lower);
+         return false;
+      }
+   }
+   else
+   {
+      //--- For SELL: confirm we're at upper BB (stronger mean reversion signal)
+      bool nearUpperBand = (rates[0].high >= bb_upper) || (MathAbs(rates[0].high - bb_upper) <= minDistance);
+      if(!nearUpperBand)
+      {
+         if(InpDebugMode)
+            Print("SELL averaging skipped: not near upper BB. Price: ", currentPrice, " BB Upper: ", bb_upper);
+         return false;
+      }
+   }
+   
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| Calculate average entry price and update all TPs                 |
+//+------------------------------------------------------------------+
+void UpdateAveragingTP(bool isBuy)
+{
+   if(!InpUseAveraging)
+      return;
+   
+   int posCount = isBuy ? buyPositionCount : sellPositionCount;
+   if(posCount == 0)
+      return;
+   
+   //--- Calculate weighted average entry price
+   double totalLots = 0;
+   double weightedPrice = 0;
+   
+   for(int i = 0; i < posCount; i++)
+   {
+      PositionInfo pos = isBuy ? buyPositions[i] : sellPositions[i];
+      totalLots += pos.lotSize;
+      weightedPrice += pos.openPrice * pos.lotSize;
+   }
+   
+   double avgEntry = weightedPrice / totalLots;
+   
+   //--- Calculate new TP at breakeven (avg entry price)
+   double newTP = avgEntry;
+   
+   //--- Update all positions in this direction
+   for(int i = 0; i < posCount; i++)
+   {
+      PositionInfo pos = isBuy ? buyPositions[i] : sellPositions[i];
+      
+      if(PositionSelectByTicket(pos.ticket))
+      {
+         double currentSL = PositionGetDouble(POSITION_SL);
+         
+         if(trade.PositionModify(pos.ticket, currentSL, newTP))
+         {
+            if(InpDebugMode && i == 0) // Print once
+               Print("Updated ", isBuy ? "BUY" : "SELL", " TPs to breakeven: ", DoubleToString(newTP, _Digits), 
+                     " (avg entry from ", posCount, " positions)");
+         }
+      }
+   }
+}
+
 //+------------------------------------------------------------------+
 //| Reset daily trade counter                                        |
 //+------------------------------------------------------------------+
