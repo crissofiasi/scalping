@@ -506,9 +506,8 @@ void UpdatePositionTP(bool isBuy)
             {
                if(InpDebugMode && i == 0)
                {
-                  Print("Updated ", isBuy ? "BUY" : "SELL", " TPs to ", 
-                        InpCloseAllAtBreakeven ? "breakeven" : "profit target", 
-                        ": ", DoubleToString(newTP, _Digits),
+                  Print("Updated ", isBuy ? "BUY" : "SELL", " TPs to opposite BB: ", 
+                        DoubleToString(newTP, _Digits),
                         " (avg entry: ", DoubleToString(avgEntry, _Digits), 
                         ", positions: ", posCount, ")");
                }
