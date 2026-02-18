@@ -20,6 +20,8 @@ input double   InpMaxInsideDistance = 0.0010;    // Max distance between inside 
 
 input group "=== Trading Settings ==="
 input double   InpBaseLot          = 0.01;       // Base Lot Size
+input double   InpMaxVolume        = 1.0;        // Maximum Trade Volume (0=disabled)
+input int      InpMaxOpenPositions = 0;          // Max Open Positions Per Side (0=disabled)
 input int      InpMagicNumber      = 123456;     // Magic Number
 input string   InpTradeComment     = "EnvScalp"; // Trade Comment
 
@@ -28,6 +30,8 @@ CTrade trade;
 int envelopeHandle;
 double upperEnvBuffer[];
 double lowerEnvBuffer[];
+int lastBuyBar = 0;
+int lastSellBar = 0;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -41,7 +45,7 @@ int OnInit()
    trade.SetAsyncMode(false);
    
    //--- Create Envelopes indicator
-   envelopeHandle = iEnvelopes(_Symbol, PERIOD_M1, InpEnvelopePeriod, 0, 
+   envelopeHandle = iEnvelopes(_Symbol, PERIOD_CURRENT, InpEnvelopePeriod, 0, 
                                 InpEnvelopeMethod, PRICE_CLOSE, InpEnvelopeDeviation);
    
    if(envelopeHandle == INVALID_HANDLE)
@@ -74,7 +78,7 @@ void OnDeinit(const int reason)
 void OnTick()
 {
    //--- Check if we have enough bars
-   if(Bars(_Symbol, PERIOD_M1) < 10)
+   if(Bars(_Symbol, PERIOD_CURRENT) < 10)
       return;
    
    //--- Copy envelope data
@@ -84,9 +88,9 @@ void OnTick()
       return;
    
    //--- Get close prices for last 3 bars (completed bars only)
-   double close1 = iClose(_Symbol, PERIOD_M1, 1); // Most recent completed bar
-   double close2 = iClose(_Symbol, PERIOD_M1, 2);
-   double close3 = iClose(_Symbol, PERIOD_M1, 3); // Oldest bar in pattern
+   double close1 = iClose(_Symbol, PERIOD_CURRENT, 1); // Most recent completed bar
+   double close2 = iClose(_Symbol, PERIOD_CURRENT, 2);
+   double close3 = iClose(_Symbol, PERIOD_CURRENT, 3); // Oldest bar in pattern
    
    //--- Check for signal
    int signal = CheckSignal(close3, close2, close1);
@@ -138,6 +142,13 @@ int CheckSignal(double close3, double close2, double close1)
 //+------------------------------------------------------------------+
 void ExecuteBuyTrade()
 {
+   //--- Check if already traded on this bar
+   int currentBar = Bars(_Symbol, PERIOD_CURRENT);
+   if(currentBar == lastBuyBar)
+   {
+      return; // Already traded Buy on this bar
+   }
+   
    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    double tp = upperEnvBuffer[0]; // TP at opposite (upper) level
    
@@ -172,6 +183,37 @@ void ExecuteBuyTrade()
    
    double newVolume = InpBaseLot;
    
+   //--- Check max open positions limit
+   if(InpMaxOpenPositions > 0 && existingBuys >= InpMaxOpenPositions)
+   {
+      Print("Max open Buy positions reached (", InpMaxOpenPositions, "). Closing farthest position.");
+      CloseFarthestBuyPosition();
+      
+      //--- Recalculate existing positions after closure
+      existingBuys = 0;
+      existingVolume = 0;
+      existingOpenPrice = 0;
+      totalProfit = 0;
+      
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         if(PositionSelectByTicket(PositionGetTicket(i)))
+         {
+            if(PositionGetString(POSITION_SYMBOL) == _Symbol &&
+               PositionGetInteger(POSITION_MAGIC) == InpMagicNumber &&
+               PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+            {
+               existingBuys++;
+               double posVolume = PositionGetDouble(POSITION_VOLUME);
+               double posOpen = PositionGetDouble(POSITION_PRICE_OPEN);
+               existingVolume += posVolume;
+               existingOpenPrice += posOpen * posVolume;
+               totalProfit += (tp - posOpen) * posVolume;
+            }
+         }
+      }
+   }
+   
    //--- Apply smart martingale if there are existing positions
    if(existingBuys > 0)
    {
@@ -190,6 +232,57 @@ void ExecuteBuyTrade()
          {
             newVolume = requiredProfit / (tp - ask);
             newVolume = NormalizeLot(newVolume);
+            
+            //--- If volume exceeds max, close farthest positions until it's below max
+            while(InpMaxVolume > 0 && newVolume > InpMaxVolume && existingBuys > 0)
+            {
+               if(!CloseFarthestBuyPosition())
+                  break;
+               
+               //--- Recalculate volume after closing position
+               existingBuys = 0;
+               existingVolume = 0;
+               existingOpenPrice = 0;
+               totalProfit = 0;
+               
+               for(int j = PositionsTotal() - 1; j >= 0; j--)
+               {
+                  if(PositionSelectByTicket(PositionGetTicket(j)))
+                  {
+                     if(PositionGetString(POSITION_SYMBOL) == _Symbol &&
+                        PositionGetInteger(POSITION_MAGIC) == InpMagicNumber &&
+                        PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+                     {
+                        existingBuys++;
+                        double posVolume = PositionGetDouble(POSITION_VOLUME);
+                        double posOpen = PositionGetDouble(POSITION_PRICE_OPEN);
+                        existingVolume += posVolume;
+                        existingOpenPrice += posOpen * posVolume;
+                        totalProfit += (tp - posOpen) * posVolume;
+                     }
+                  }
+               }
+               
+               if(existingBuys > 0)
+               {
+                  baseProfit = (tp - ask) * InpBaseLot;
+                  requiredProfit = baseProfit - totalProfit;
+                  
+                  if(requiredProfit > 0 && (tp - ask) != 0)
+                  {
+                     newVolume = requiredProfit / (tp - ask);
+                     newVolume = NormalizeLot(newVolume);
+                  }
+                  else
+                  {
+                     newVolume = InpBaseLot;
+                  }
+               }
+               else
+               {
+                  newVolume = InpBaseLot;
+               }
+            }
          }
       }
       
@@ -204,6 +297,7 @@ void ExecuteBuyTrade()
    if(trade.Buy(newVolume, _Symbol, ask, 0, tp, InpTradeComment))
    {
       Print("Buy order executed: Volume=", newVolume, " TP=", tp);
+      lastBuyBar = currentBar; // Mark this bar as traded
    }
    else
    {
@@ -216,6 +310,13 @@ void ExecuteBuyTrade()
 //+------------------------------------------------------------------+
 void ExecuteSellTrade()
 {
+   //--- Check if already traded on this bar
+   int currentBar = Bars(_Symbol, PERIOD_CURRENT);
+   if(currentBar == lastSellBar)
+   {
+      return; // Already traded Sell on this bar
+   }
+   
    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double tp = lowerEnvBuffer[0]; // TP at opposite (lower) level
    
@@ -250,6 +351,37 @@ void ExecuteSellTrade()
    
    double newVolume = InpBaseLot;
    
+   //--- Check max open positions limit
+   if(InpMaxOpenPositions > 0 && existingSells >= InpMaxOpenPositions)
+   {
+      Print("Max open Sell positions reached (", InpMaxOpenPositions, "). Closing farthest position.");
+      CloseFarthestSellPosition();
+      
+      //--- Recalculate existing positions after closure
+      existingSells = 0;
+      existingVolume = 0;
+      existingOpenPrice = 0;
+      totalProfit = 0;
+      
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         if(PositionSelectByTicket(PositionGetTicket(i)))
+         {
+            if(PositionGetString(POSITION_SYMBOL) == _Symbol &&
+               PositionGetInteger(POSITION_MAGIC) == InpMagicNumber &&
+               PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+            {
+               existingSells++;
+               double posVolume = PositionGetDouble(POSITION_VOLUME);
+               double posOpen = PositionGetDouble(POSITION_PRICE_OPEN);
+               existingVolume += posVolume;
+               existingOpenPrice += posOpen * posVolume;
+               totalProfit += (posOpen - tp) * posVolume;
+            }
+         }
+      }
+   }
+   
    //--- Apply smart martingale if there are existing positions
    if(existingSells > 0)
    {
@@ -268,6 +400,57 @@ void ExecuteSellTrade()
          {
             newVolume = requiredProfit / (bid - tp);
             newVolume = NormalizeLot(newVolume);
+            
+            //--- If volume exceeds max, close farthest positions until it's below max
+            while(InpMaxVolume > 0 && newVolume > InpMaxVolume && existingSells > 0)
+            {
+               if(!CloseFarthestSellPosition())
+                  break;
+               
+               //--- Recalculate volume after closing position
+               existingSells = 0;
+               existingVolume = 0;
+               existingOpenPrice = 0;
+               totalProfit = 0;
+               
+               for(int j = PositionsTotal() - 1; j >= 0; j--)
+               {
+                  if(PositionSelectByTicket(PositionGetTicket(j)))
+                  {
+                     if(PositionGetString(POSITION_SYMBOL) == _Symbol &&
+                        PositionGetInteger(POSITION_MAGIC) == InpMagicNumber &&
+                        PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+                     {
+                        existingSells++;
+                        double posVolume = PositionGetDouble(POSITION_VOLUME);
+                        double posOpen = PositionGetDouble(POSITION_PRICE_OPEN);
+                        existingVolume += posVolume;
+                        existingOpenPrice += posOpen * posVolume;
+                        totalProfit += (posOpen - tp) * posVolume;
+                     }
+                  }
+               }
+               
+               if(existingSells > 0)
+               {
+                  baseProfit = (bid - tp) * InpBaseLot;
+                  requiredProfit = baseProfit - totalProfit;
+                  
+                  if(requiredProfit > 0 && (bid - tp) != 0)
+                  {
+                     newVolume = requiredProfit / (bid - tp);
+                     newVolume = NormalizeLot(newVolume);
+                  }
+                  else
+                  {
+                     newVolume = InpBaseLot;
+                  }
+               }
+               else
+               {
+                  newVolume = InpBaseLot;
+               }
+            }
          }
       }
       
@@ -282,6 +465,7 @@ void ExecuteSellTrade()
    if(trade.Sell(newVolume, _Symbol, bid, 0, tp, InpTradeComment))
    {
       Print("Sell order executed: Volume=", newVolume, " TP=", tp);
+      lastSellBar = currentBar; // Mark this bar as traded
    }
    else
    {
@@ -337,6 +521,96 @@ void AdjustSellTakeProfits(double newTP)
          }
       }
    }
+}
+
+//+------------------------------------------------------------------+
+//| Close farthest Buy position (earliest opening price)            |
+//+------------------------------------------------------------------+
+bool CloseFarthestBuyPosition()
+{
+   ulong oldestTicket = 0;
+   double oldestOpenPrice = 0;
+   datetime oldestOpenTime = D'2099.12.31';
+   
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(PositionSelectByTicket(ticket))
+      {
+         if(PositionGetString(POSITION_SYMBOL) == _Symbol &&
+            PositionGetInteger(POSITION_MAGIC) == InpMagicNumber &&
+            PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+         {
+            datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
+            if(openTime < oldestOpenTime)
+            {
+               oldestOpenTime = openTime;
+               oldestTicket = ticket;
+               oldestOpenPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+            }
+         }
+      }
+   }
+   
+   if(oldestTicket > 0)
+   {
+      if(trade.PositionClose(oldestTicket))
+      {
+         Print("Closed farthest Buy position #", oldestTicket, " opened at ", oldestOpenPrice);
+         return true;
+      }
+      else
+      {
+         Print("Failed to close Buy position #", oldestTicket, ": ", trade.ResultRetcodeDescription());
+      }
+   }
+   
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| Close farthest Sell position (earliest opening price)           |
+//+------------------------------------------------------------------+
+bool CloseFarthestSellPosition()
+{
+   ulong oldestTicket = 0;
+   double oldestOpenPrice = 0;
+   datetime oldestOpenTime = D'2099.12.31';
+   
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(PositionSelectByTicket(ticket))
+      {
+         if(PositionGetString(POSITION_SYMBOL) == _Symbol &&
+            PositionGetInteger(POSITION_MAGIC) == InpMagicNumber &&
+            PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+         {
+            datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
+            if(openTime < oldestOpenTime)
+            {
+               oldestOpenTime = openTime;
+               oldestTicket = ticket;
+               oldestOpenPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+            }
+         }
+      }
+   }
+   
+   if(oldestTicket > 0)
+   {
+      if(trade.PositionClose(oldestTicket))
+      {
+         Print("Closed farthest Sell position #", oldestTicket, " opened at ", oldestOpenPrice);
+         return true;
+      }
+      else
+      {
+         Print("Failed to close Sell position #", oldestTicket, ": ", trade.ResultRetcodeDescription());
+      }
+   }
+   
+   return false;
 }
 
 //+------------------------------------------------------------------+
