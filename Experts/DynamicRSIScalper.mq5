@@ -596,8 +596,10 @@ double CalculateBasketDistance(ENUM_ORDER_TYPE order_type)
          break;
          
       case DISTANCE_CENTER:
-         double center_price = sum_prices / sum_lots;
-         distance_price = MathAbs(current_price - center_price);
+         {
+            double center_price = sum_prices / sum_lots;
+            distance_price = MathAbs(current_price - center_price);
+         }
          break;
    }
    
