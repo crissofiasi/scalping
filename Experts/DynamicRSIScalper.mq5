@@ -68,25 +68,25 @@ input group "═══════════ Dynamic Volume Multiplier ══�
 input bool               Input_Use_Dynamic_Multiplier = false;         // Enable Dynamic Multiplier
 input double             Input_Multiplier_Min = 1.2;                   // Minimum Multiplier
 input double             Input_Multiplier_Max = 1.8;                   // Maximum Multiplier
-input double             Input_Distance_Reference_USD = 10.00;         // Reference Distance (USD)
+input double             Input_Distance_Reference_Points = 100.0;      // Reference Distance (Points)
 input ENUM_DISTANCE_CALC Input_Distance_Calculation = DISTANCE_NEAREST;// Distance Calculation Method
 input ENUM_CURVE_TYPE    Input_Multiplier_Curve = CURVE_LINEAR;        // Interpolation Curve Type
 
 //--- 5. Price Filters & Grid Protection
 input group "═══════════ Price Filters & Grid Protection ═══════════"
 input bool               Input_Use_Price_Filter = true;                // Enable Price Filter
-input double             Input_Min_Distance_USD = 3.00;                // Min Distance from Basket Edge (USD)
-input double             Input_Max_Basket_Width_USD = 25.00;           // Max Basket Width (USD)
+input double             Input_Min_Distance_Points = 30.0;             // Min Distance from Basket Edge (Points)
+input double             Input_Max_Basket_Width_Points = 250.0;        // Max Basket Width (Points)
 input double             Input_Max_Total_Lots = 0.50;                  // Max Total Open Lots
 
 //--- 6. Exit Logic & Take Profit
 input group "═══════════ Exit Logic & Take Profit ═══════════"
 input bool               Input_Close_Opposite_If_Profitable = true;    // Close Opposite on Signal
-input double             Input_Min_Profit_To_Close_USD = 0.01;         // Min Profit to Close Opposite (USD)
+input double             Input_Min_Profit_To_Close = 0.01;             // Min Profit to Close Opposite (Account Currency)
 input bool               Input_Close_Own_If_Profitable = true;         // Close Own on Opposite Signal
 input bool               Input_Use_Trailing_Stop = false;              // Enable Trailing Stop
-input double             Input_Trailing_Start_USD = 5.00;              // Trailing Start (USD)
-input double             Input_Trailing_Step_USD = 2.00;               // Trailing Step (USD)
+input double             Input_Trailing_Start = 5.00;                  // Trailing Start (Account Currency)
+input double             Input_Trailing_Step = 2.00;                   // Trailing Step (Account Currency)
 
 //--- 7. Risk Management & Circuit Breakers
 input group "═══════════ Risk Management & Circuit Breakers ═══════════"
@@ -95,14 +95,14 @@ input double             Input_Equity_Stop_Percent = 10.0;             // Equity
 input bool               Input_Use_Floating_Loss_Pause = true;         // Enable Floating Loss Pause
 input double             Input_Floating_Loss_Pause_Percent = 3.0;      // Floating Loss Pause Percent
 input bool               Input_Use_Daily_Loss_Limit = true;            // Enable Daily Loss Limit
-input double             Input_Daily_Loss_Limit_USD = 500.00;          // Daily Loss Limit (USD)
+input double             Input_Daily_Loss_Limit = 500.00;              // Daily Loss Limit (Account Currency)
 input bool               Input_Use_Max_Drawdown_Pause = false;         // Enable Max Drawdown Pause
 input double             Input_Max_Drawdown_Pause_Percent = 15.0;      // Max Drawdown Pause Percent
 
 //--- 8. Trading Filters (Time, Spread, News)
 input group "═══════════ Trading Filters ═══════════"
 input bool               Input_Use_Max_Spread_Filter = true;           // Enable Spread Filter
-input double             Input_Max_Spread_USD = 0.50;                  // Max Spread (USD)
+input double             Input_Max_Spread_Points = 5.0;                // Max Spread (Points)
 input bool               Input_Use_News_Filter = true;                 // Enable News Filter
 input int                Input_News_Filter_Minutes = 60;               // News Filter Minutes Before/After
 input ENUM_NEWS_IMPACT   Input_News_Impact_Level = NEWS_IMPACT_HIGH;   // News Impact Level to Filter
@@ -276,7 +276,7 @@ void ProcessNewBar()
       if(Input_Close_Opposite_If_Profitable)
       {
          double sell_profit = CalculateBasketProfit(ORDER_TYPE_SELL);
-         if(sell_profit >= Input_Min_Profit_To_Close_USD)
+         if(sell_profit >= Input_Min_Profit_To_Close)
          {
             CloseBasket(ORDER_TYPE_SELL, "Opposite signal profitable");
          }
@@ -286,7 +286,7 @@ void ProcessNewBar()
       if(Input_Close_Own_If_Profitable)
       {
          double buy_profit = CalculateBasketProfit(ORDER_TYPE_BUY);
-         if(buy_profit >= Input_Min_Profit_To_Close_USD)
+         if(buy_profit >= Input_Min_Profit_To_Close)
          {
             CloseBasket(ORDER_TYPE_BUY, "Own basket profitable on opposite signal");
          }
@@ -301,7 +301,7 @@ void ProcessNewBar()
       if(Input_Close_Opposite_If_Profitable)
       {
          double buy_profit = CalculateBasketProfit(ORDER_TYPE_BUY);
-         if(buy_profit >= Input_Min_Profit_To_Close_USD)
+         if(buy_profit >= Input_Min_Profit_To_Close)
          {
             CloseBasket(ORDER_TYPE_BUY, "Opposite signal profitable");
          }
@@ -311,7 +311,7 @@ void ProcessNewBar()
       if(Input_Close_Own_If_Profitable)
       {
          double sell_profit = CalculateBasketProfit(ORDER_TYPE_SELL);
-         if(sell_profit >= Input_Min_Profit_To_Close_USD)
+         if(sell_profit >= Input_Min_Profit_To_Close)
          {
             CloseBasket(ORDER_TYPE_SELL, "Own basket profitable on opposite signal");
          }
@@ -482,18 +482,18 @@ double Calculate_Dynamic_Multiplier(ENUM_ORDER_TYPE order_type)
       return Input_Martingale_Multiplier;
    
    //--- 4.3 Calculate distance based on method
-   double distance_usd = CalculateBasketDistance(order_type);
+   double distance_points = CalculateBasketDistance(order_type);
    
    //--- 4.7 If distance is zero or negative, return minimum
-   if(distance_usd <= 0.0)
+   if(distance_points <= 0.0)
       return Input_Multiplier_Min;
    
    //--- 4.6 If distance exceeds reference, return maximum
-   if(distance_usd >= Input_Distance_Reference_USD)
+   if(distance_points >= Input_Distance_Reference_Points)
       return Input_Multiplier_Max;
    
    //--- 4.4-4.5 Interpolate multiplier based on curve type
-   double ratio = distance_usd / Input_Distance_Reference_USD;
+   double ratio = distance_points / Input_Distance_Reference_Points;
    double multiplier = Input_Multiplier_Min;
    
    switch(Input_Multiplier_Curve)
@@ -522,7 +522,7 @@ double Calculate_Dynamic_Multiplier(ENUM_ORDER_TYPE order_type)
 }
 
 //+------------------------------------------------------------------+
-//| Calculate basket distance (4.3)                                  |
+//| Calculate basket distance in points (4.3)                        |
 //+------------------------------------------------------------------+
 double CalculateBasketDistance(ENUM_ORDER_TYPE order_type)
 {
@@ -531,6 +531,7 @@ double CalculateBasketDistance(ENUM_ORDER_TYPE order_type)
                           SymbolInfoDouble(symbol, SYMBOL_ASK) : 
                           SymbolInfoDouble(symbol, SYMBOL_BID);
    
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
    double nearest_price = 0.0;
    double farthest_price = 0.0;
    double sum_prices = 0.0;
@@ -603,12 +604,10 @@ double CalculateBasketDistance(ENUM_ORDER_TYPE order_type)
          break;
    }
    
-   //--- Convert to USD (8.5)
-   double tick_value = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
-   double tick_size = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
-   double distance_usd = (distance_price / tick_size) * tick_value;
+   //--- Convert to points
+   double distance_points = distance_price / point;
    
-   return distance_usd;
+   return distance_points;
 }
 
 //+------------------------------------------------------------------+
@@ -621,6 +620,7 @@ bool PassesPriceFilter(ENUM_ORDER_TYPE order_type)
                           SymbolInfoDouble(symbol, SYMBOL_ASK) : 
                           SymbolInfoDouble(symbol, SYMBOL_BID);
    
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
    double min_price = DBL_MAX;
    double max_price = -DBL_MAX;
    double last_price = 0.0;
@@ -662,24 +662,23 @@ bool PassesPriceFilter(ENUM_ORDER_TYPE order_type)
    
    //--- Check minimum distance from last order
    double distance_price = MathAbs(current_price - last_price);
-   double tick_value = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
-   double tick_size = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
-   double distance_usd = (distance_price / tick_size) * tick_value;
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   double distance_points = distance_price / point;
    
-   if(distance_usd < Input_Min_Distance_USD)
+   if(distance_points < Input_Min_Distance_Points)
    {
-      Print("Distance too small: ", distance_usd, " USD");
+      Print("Distance too small: ", distance_points, " points");
       return false;
    }
    
    //--- Check basket width
    double basket_width_price = max_price - min_price;
    double new_basket_width_price = MathMax(max_price, current_price) - MathMin(min_price, current_price);
-   double new_basket_width_usd = (new_basket_width_price / tick_size) * tick_value;
+   double new_basket_width_points = new_basket_width_price / point;
    
-   if(new_basket_width_usd > Input_Max_Basket_Width_USD)
+   if(new_basket_width_points > Input_Max_Basket_Width_Points)
    {
-      Print("Basket width would exceed maximum: ", new_basket_width_usd, " USD");
+      Print("Basket width would exceed maximum: ", new_basket_width_points, " points");
       return false;
    }
    
@@ -830,18 +829,16 @@ void UpdateTrailingStops()
             double profit = PositionGetDouble(POSITION_PROFIT);
             
             //--- Check if profit exceeds trailing start
-            if(profit >= Input_Trailing_Start_USD)
+            if(profit >= Input_Trailing_Start)
             {
                double price_open = PositionGetDouble(POSITION_PRICE_OPEN);
                double sl = PositionGetDouble(POSITION_SL);
                ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
                
                double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
-               double tick_value = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
-               double tick_size = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
                
-               //--- Convert USD to price
-               double trailing_step_price = (Input_Trailing_Step_USD / tick_value) * tick_size;
+               //--- Convert points to price
+               double trailing_step_price = Input_Trailing_Step * point;
                
                double new_sl = 0.0;
                
@@ -969,9 +966,9 @@ bool CheckRiskManagement()
       //--- Calculate daily loss from history
       CalculateDailyLoss();
       
-      if(m_daily_realized_loss > Input_Daily_Loss_Limit_USD)
+      if(m_daily_realized_loss > Input_Daily_Loss_Limit)
       {
-         Print("Daily loss limit reached: ", m_daily_realized_loss, " USD");
+         Print("Daily loss limit reached: ", m_daily_realized_loss);
          return false;
       }
    }
@@ -1051,14 +1048,13 @@ bool IsSpreadAcceptable()
    double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
    double spread_price = ask - bid;
    
-   //--- Convert to USD
-   double tick_value = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
-   double tick_size = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
-   double spread_usd = (spread_price / tick_size) * tick_value;
+   //--- Convert to points
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   double spread_points = spread_price / point;
    
-   if(spread_usd > Input_Max_Spread_USD)
+   if(spread_points > Input_Max_Spread_Points)
    {
-      Print("Spread too high: ", spread_usd, " USD");
+      Print("Spread too high: ", spread_points, " points");
       return false;
    }
    
@@ -1174,30 +1170,16 @@ bool ValidateInputParameters()
          valid = false;
       }
       
-      if(Input_Distance_Reference_USD <= 0.0)
-      {
-         Print("ERROR: Distance Reference must be positive");
-         valid = false;
-      }
-   }
-   
-   //--- Max layers
-   if(Input_Max_Layers_Per_Side <= 0)
-   {
-      Print("ERROR: Max layers must be positive");
-      valid = false;
-   }
-   
-   //--- Price filter
+         if(Input_Distance_Reference_Points <= 0.0)
    if(Input_Use_Price_Filter)
    {
-      if(Input_Min_Distance_USD < 0.0)
+      if(Input_Min_Distance_Points < 0.0)
       {
          Print("ERROR: Min distance cannot be negative");
          valid = false;
       }
       
-      if(Input_Max_Basket_Width_USD <= 0.0)
+      if(Input_Max_Basket_Width_Points <= 0.0)
       {
          Print("ERROR: Max basket width must be positive");
          valid = false;
@@ -1212,7 +1194,7 @@ bool ValidateInputParameters()
    }
    
    //--- Exit logic
-   if(Input_Min_Profit_To_Close_USD < 0.0)
+   if(Input_Min_Profit_To_Close < 0.0)
    {
       Print("ERROR: Min profit to close cannot be negative");
       valid = false;
@@ -1221,7 +1203,7 @@ bool ValidateInputParameters()
    //--- Trailing stop
    if(Input_Use_Trailing_Stop)
    {
-      if(Input_Trailing_Start_USD <= 0.0 || Input_Trailing_Step_USD <= 0.0)
+      if(Input_Trailing_Start <= 0.0 || Input_Trailing_Step <= 0.0)
       {
          Print("ERROR: Trailing parameters must be positive");
          valid = false;
@@ -1241,14 +1223,14 @@ bool ValidateInputParameters()
       valid = false;
    }
    
-   if(Input_Use_Daily_Loss_Limit && Input_Daily_Loss_Limit_USD <= 0.0)
+   if(Input_Use_Daily_Loss_Limit && Input_Daily_Loss_Limit <= 0.0)
    {
       Print("ERROR: Daily loss limit must be positive");
       valid = false;
    }
    
    //--- Filters
-   if(Input_Use_Max_Spread_Filter && Input_Max_Spread_USD <= 0.0)
+   if(Input_Use_Max_Spread_Filter && Input_Max_Spread_Points <= 0.0)
    {
       Print("ERROR: Max spread must be positive");
       valid = false;
