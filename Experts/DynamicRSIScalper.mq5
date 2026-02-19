@@ -1170,7 +1170,21 @@ bool ValidateInputParameters()
          valid = false;
       }
       
-         if(Input_Distance_Reference_Points <= 0.0)
+      if(Input_Distance_Reference_Points <= 0.0)
+      {
+         Print("ERROR: Distance Reference must be positive");
+         valid = false;
+      }
+   }
+   
+   //--- Max layers
+   if(Input_Max_Layers_Per_Side <= 0)
+   {
+      Print("ERROR: Max layers must be positive");
+      valid = false;
+   }
+   
+   //--- Price filter
    if(Input_Use_Price_Filter)
    {
       if(Input_Min_Distance_Points < 0.0)
