@@ -662,7 +662,6 @@ bool PassesPriceFilter(ENUM_ORDER_TYPE order_type)
    
    //--- Check minimum distance from last order
    double distance_price = MathAbs(current_price - last_price);
-   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
    double distance_points = distance_price / point;
    
    if(distance_points < Input_Min_Distance_Points)
