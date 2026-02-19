@@ -10,6 +10,30 @@
 #include <Trade\Trade.mqh>
 
 //+------------------------------------------------------------------+
+//| ENUMERATIONS                                                      |
+//+------------------------------------------------------------------+
+enum ENUM_CURVE_TYPE
+{
+   CURVE_LINEAR,      // Linear
+   CURVE_EXPONENTIAL, // Exponential
+   CURVE_LOGARITHMIC  // Logarithmic
+};
+
+enum ENUM_DISTANCE_CALC
+{
+   DISTANCE_NEAREST,  // Nearest Edge
+   DISTANCE_FARTHEST, // Farthest Edge
+   DISTANCE_CENTER    // Basket Center
+};
+
+enum ENUM_NEWS_IMPACT
+{
+   NEWS_IMPACT_LOW,    // Low Impact
+   NEWS_IMPACT_MEDIUM, // Medium Impact
+   NEWS_IMPACT_HIGH    // High Impact
+};
+
+//+------------------------------------------------------------------+
 //| INPUT PARAMETERS - ZERO HARDCODING ARCHITECTURE                  |
 //+------------------------------------------------------------------+
 
@@ -95,30 +119,6 @@ input bool               Input_Debug_Mode = false;                     // Enable
 input double             Input_Broker_Min_Lot = 0.01;                  // Broker Min Lot (0=Auto)
 input double             Input_Broker_Max_Lot = 0.00;                  // Broker Max Lot (0=Auto)
 input double             Input_Broker_Lot_Step = 0.01;                 // Broker Lot Step (0=Auto)
-
-//+------------------------------------------------------------------+
-//| ENUMERATIONS                                                      |
-//+------------------------------------------------------------------+
-enum ENUM_CURVE_TYPE
-{
-   CURVE_LINEAR,      // Linear
-   CURVE_EXPONENTIAL, // Exponential
-   CURVE_LOGARITHMIC  // Logarithmic
-};
-
-enum ENUM_DISTANCE_CALC
-{
-   DISTANCE_NEAREST,  // Nearest Edge
-   DISTANCE_FARTHEST, // Farthest Edge
-   DISTANCE_CENTER    // Basket Center
-};
-
-enum ENUM_NEWS_IMPACT
-{
-   NEWS_IMPACT_LOW,    // Low Impact
-   NEWS_IMPACT_MEDIUM, // Medium Impact
-   NEWS_IMPACT_HIGH    // High Impact
-};
 
 //+------------------------------------------------------------------+
 //| GLOBAL VARIABLES                                                  |
