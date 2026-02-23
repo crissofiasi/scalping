@@ -1,0 +1,30 @@
+# Python Training Requirements for Neural Predictor
+# Install with: pip install -r requirements.txt
+
+# Core ML Framework
+tensorflow>=2.13.0       # Neural network training (GPU support included)
+keras>=2.13.0           # High-level neural network API
+
+# Data Processing
+numpy>=1.24.0           # Numerical computing
+pandas>=2.0.0           # Data manipulation and analysis
+scikit-learn>=1.3.0     # Machine learning utilities (train/test split, metrics)
+
+# Visualization
+matplotlib>=3.7.0       # Plotting library
+seaborn>=0.12.0         # Statistical visualization
+
+# Optional but Recommended
+jupyter>=1.0.0          # Jupyter notebook support
+ipykernel>=6.23.0       # IPython kernel for Jupyter
+notebook>=6.5.0         # Jupyter Notebook interface
+
+# For advanced users
+# tensorboard>=2.13.0   # TensorFlow visualization toolkit
+# onnx>=1.14.0           # ONNX export (if using ONNX conversion)
+# tf2onnx>=1.15.0        # TensorFlow to ONNX converter
+
+# GPU Acceleration (optional, but highly recommended)
+# Already included in tensorflow>=2.13.0
+# Requires CUDA 11.8 and cuDNN 8.6+ for GPU support
+# Installation guide: https://www.tensorflow.org/install/gpu
