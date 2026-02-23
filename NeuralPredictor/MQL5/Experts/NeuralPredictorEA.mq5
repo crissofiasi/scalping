@@ -98,26 +98,6 @@ double               m_daily_loss = 0.0;
 datetime             m_daily_reset_time = 0;
 bool                 m_model_loaded = false;
 
-//--- Indicator handles
-int                  m_rsi_handle = INVALID_HANDLE;
-int                  m_rsi_fast_handle = INVALID_HANDLE;
-int                  m_macd_handle = INVALID_HANDLE;
-int                  m_atr_handle = INVALID_HANDLE;
-int                  m_bb_handle = INVALID_HANDLE;
-
-//--- Multi-timeframe indicator handles
-int                  m_rsi_handle_tf2 = INVALID_HANDLE;
-int                  m_rsi_fast_handle_tf2 = INVALID_HANDLE;
-int                  m_macd_handle_tf2 = INVALID_HANDLE;
-int                  m_atr_handle_tf2 = INVALID_HANDLE;
-int                  m_bb_handle_tf2 = INVALID_HANDLE;
-
-int                  m_rsi_handle_tf3 = INVALID_HANDLE;
-int                  m_rsi_fast_handle_tf3 = INVALID_HANDLE;
-int                  m_macd_handle_tf3 = INVALID_HANDLE;
-int                  m_atr_handle_tf3 = INVALID_HANDLE;
-int                  m_bb_handle_tf3 = INVALID_HANDLE;
-
 //+------------------------------------------------------------------+
 //| Expert initialization                                             |
 //+------------------------------------------------------------------+
@@ -130,59 +110,23 @@ int OnInit()
    m_trade.SetDeviationInPoints(30);
    m_trade.SetTypeFilling(ORDER_FILLING_FOK);
    
-   //--- Initialize indicators
-   m_rsi_handle = iRSI(symbol, Input_Prediction_Timeframe, Input_RSI_Period, PRICE_CLOSE);
-   m_rsi_fast_handle = iRSI(symbol, Input_Prediction_Timeframe, Input_RSI_Fast_Period, PRICE_CLOSE);
-   m_macd_handle = iMACD(symbol, Input_Prediction_Timeframe, Input_MACD_Fast, Input_MACD_Slow, Input_MACD_Signal, PRICE_CLOSE);
-   m_atr_handle = iATR(symbol, Input_Prediction_Timeframe, Input_ATR_Period);
-   m_bb_handle = iBands(symbol, Input_Prediction_Timeframe, Input_BB_Period, 0, Input_BB_Deviation, PRICE_CLOSE);
-   
-   if(m_rsi_handle == INVALID_HANDLE || m_rsi_fast_handle == INVALID_HANDLE || 
-      m_macd_handle == INVALID_HANDLE || m_atr_handle == INVALID_HANDLE || 
-      m_bb_handle == INVALID_HANDLE)
+   //--- Initialize predictor library
+   m_predictor = new CNNPredictorLib();
+   if(!m_predictor.Initialize(symbol, Input_Prediction_Timeframe, 
+                               Input_RSI_Period, Input_RSI_Fast_Period,
+                               Input_MACD_Fast, Input_MACD_Slow, Input_MACD_Signal,
+                               Input_ATR_Period, Input_BB_Period, Input_BB_Deviation,
+                               Input_Use_Multi_Timeframe, Input_Timeframe_2, Input_Timeframe_3))
    {
-      Print("ERROR: Failed to create indicators");
+      Print("ERROR: Failed to initialize predictor indicators");
+      delete m_predictor;
       return INIT_FAILED;
    }
    
-   //--- Initialize multi-timeframe indicators if enabled
    if(Input_Use_Multi_Timeframe)
    {
-      m_rsi_handle_tf2 = iRSI(symbol, Input_Timeframe_2, Input_RSI_Period, PRICE_CLOSE);
-      m_rsi_fast_handle_tf2 = iRSI(symbol, Input_Timeframe_2, Input_RSI_Fast_Period, PRICE_CLOSE);
-      m_macd_handle_tf2 = iMACD(symbol, Input_Timeframe_2, Input_MACD_Fast, Input_MACD_Slow, Input_MACD_Signal, PRICE_CLOSE);
-      m_atr_handle_tf2 = iATR(symbol, Input_Timeframe_2, Input_ATR_Period);
-      m_bb_handle_tf2 = iBands(symbol, Input_Timeframe_2, Input_BB_Period, 0, Input_BB_Deviation, PRICE_CLOSE);
-      
-      m_rsi_handle_tf3 = iRSI(symbol, Input_Timeframe_3, Input_RSI_Period, PRICE_CLOSE);
-      m_rsi_fast_handle_tf3 = iRSI(symbol, Input_Timeframe_3, Input_RSI_Fast_Period, PRICE_CLOSE);
-      m_macd_handle_tf3 = iMACD(symbol, Input_Timeframe_3, Input_MACD_Fast, Input_MACD_Slow, Input_MACD_Signal, PRICE_CLOSE);
-      m_atr_handle_tf3 = iATR(symbol, Input_Timeframe_3, Input_ATR_Period);
-      m_bb_handle_tf3 = iBands(symbol, Input_Timeframe_3, Input_BB_Period, 0, Input_BB_Deviation, PRICE_CLOSE);
-      
-      if(m_rsi_handle_tf2 == INVALID_HANDLE || m_rsi_fast_handle_tf2 == INVALID_HANDLE ||
-         m_rsi_handle_tf3 == INVALID_HANDLE || m_rsi_fast_handle_tf3 == INVALID_HANDLE)
-      {
-         Print("ERROR: Failed to create multi-timeframe indicators");
-         return INIT_FAILED;
-      }
-      
       Print("Multi-timeframe analysis enabled: TF1=", EnumToString(Input_Prediction_Timeframe),
             " TF2=", EnumToString(Input_Timeframe_2), " TF3=", EnumToString(Input_Timeframe_3));
-   }
-   
-   //--- Initialize predictor library
-   m_predictor = new CNNPredictorLib();
-   m_predictor.SetSymbol(symbol);
-   m_predictor.SetTimeframe(Input_Prediction_Timeframe);
-   m_predictor.SetIndicatorHandles(m_rsi_handle, m_rsi_fast_handle, m_macd_handle, m_atr_handle, m_bb_handle);
-   
-   //--- Set multi-timeframe if enabled
-   if(Input_Use_Multi_Timeframe)
-   {
-      m_predictor.EnableMultiTimeframe(true, Input_Timeframe_2, Input_Timeframe_3);
-      m_predictor.SetIndicatorHandlesTF2(m_rsi_handle_tf2, m_rsi_fast_handle_tf2, m_macd_handle_tf2, m_atr_handle_tf2, m_bb_handle_tf2);
-      m_predictor.SetIndicatorHandlesTF3(m_rsi_handle_tf3, m_rsi_fast_handle_tf3, m_macd_handle_tf3, m_atr_handle_tf3, m_bb_handle_tf3);
    }
    
    //--- Create neural network

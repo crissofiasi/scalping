@@ -68,6 +68,31 @@ public:
       m_timeframe3 = PERIOD_CURRENT;
    }
    
+   //--- Destructor
+   ~CNNPredictorLib()
+   {
+      //--- Release primary timeframe indicators
+      if(m_rsi_handle != INVALID_HANDLE) IndicatorRelease(m_rsi_handle);
+      if(m_rsi_fast_handle != INVALID_HANDLE) IndicatorRelease(m_rsi_fast_handle);
+      if(m_macd_handle != INVALID_HANDLE) IndicatorRelease(m_macd_handle);
+      if(m_atr_handle != INVALID_HANDLE) IndicatorRelease(m_atr_handle);
+      if(m_bb_handle != INVALID_HANDLE) IndicatorRelease(m_bb_handle);
+      
+      //--- Release timeframe 2 indicators
+      if(m_rsi_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_rsi_handle_tf2);
+      if(m_rsi_fast_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_rsi_fast_handle_tf2);
+      if(m_macd_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_macd_handle_tf2);
+      if(m_atr_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_atr_handle_tf2);
+      if(m_bb_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_bb_handle_tf2);
+      
+      //--- Release timeframe 3 indicators
+      if(m_rsi_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_rsi_handle_tf3);
+      if(m_rsi_fast_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_rsi_fast_handle_tf3);
+      if(m_macd_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_macd_handle_tf3);
+      if(m_atr_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_atr_handle_tf3);
+      if(m_bb_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_bb_handle_tf3);
+   }
+   
    //--- Setters
    void SetSymbol(string symbol) { m_symbol = symbol; }
    void SetTimeframe(ENUM_TIMEFRAMES tf) { m_timeframe = tf; }
@@ -104,6 +129,58 @@ public:
       m_macd_handle_tf3 = macd;
       m_atr_handle_tf3 = atr;
       m_bb_handle_tf3 = bb;
+   }
+   
+   //--- Initialize indicators
+   bool Initialize(string symbol, ENUM_TIMEFRAMES tf, int rsi_period, int rsi_fast_period,
+                   int macd_fast, int macd_slow, int macd_signal, int atr_period,
+                   int bb_period, double bb_deviation,
+                   bool use_multi_tf = false, ENUM_TIMEFRAMES tf2 = PERIOD_CURRENT, ENUM_TIMEFRAMES tf3 = PERIOD_CURRENT)
+   {
+      m_symbol = symbol;
+      m_timeframe = tf;
+      m_use_multi_tf = use_multi_tf;
+      m_timeframe2 = tf2;
+      m_timeframe3 = tf3;
+      
+      //--- Create primary timeframe indicators
+      m_rsi_handle = iRSI(m_symbol, m_timeframe, rsi_period, PRICE_CLOSE);
+      m_rsi_fast_handle = iRSI(m_symbol, m_timeframe, rsi_fast_period, PRICE_CLOSE);
+      m_macd_handle = iMACD(m_symbol, m_timeframe, macd_fast, macd_slow, macd_signal, PRICE_CLOSE);
+      m_atr_handle = iATR(m_symbol, m_timeframe, atr_period);
+      m_bb_handle = iBands(m_symbol, m_timeframe, bb_period, 0, bb_deviation, PRICE_CLOSE);
+      
+      if(m_rsi_handle == INVALID_HANDLE || m_rsi_fast_handle == INVALID_HANDLE ||
+         m_macd_handle == INVALID_HANDLE || m_atr_handle == INVALID_HANDLE || m_bb_handle == INVALID_HANDLE)
+      {
+         Print("Failed to create primary timeframe indicators");
+         return false;
+      }
+      
+      //--- Create multi-timeframe indicators if enabled
+      if(m_use_multi_tf)
+      {
+         m_rsi_handle_tf2 = iRSI(m_symbol, m_timeframe2, rsi_period, PRICE_CLOSE);
+         m_rsi_fast_handle_tf2 = iRSI(m_symbol, m_timeframe2, rsi_fast_period, PRICE_CLOSE);
+         m_macd_handle_tf2 = iMACD(m_symbol, m_timeframe2, macd_fast, macd_slow, macd_signal, PRICE_CLOSE);
+         m_atr_handle_tf2 = iATR(m_symbol, m_timeframe2, atr_period);
+         m_bb_handle_tf2 = iBands(m_symbol, m_timeframe2, bb_period, 0, bb_deviation, PRICE_CLOSE);
+         
+         m_rsi_handle_tf3 = iRSI(m_symbol, m_timeframe3, rsi_period, PRICE_CLOSE);
+         m_rsi_fast_handle_tf3 = iRSI(m_symbol, m_timeframe3, rsi_fast_period, PRICE_CLOSE);
+         m_macd_handle_tf3 = iMACD(m_symbol, m_timeframe3, macd_fast, macd_slow, macd_signal, PRICE_CLOSE);
+         m_atr_handle_tf3 = iATR(m_symbol, m_timeframe3, atr_period);
+         m_bb_handle_tf3 = iBands(m_symbol, m_timeframe3, bb_period, 0, bb_deviation, PRICE_CLOSE);
+         
+         if(m_rsi_handle_tf2 == INVALID_HANDLE || m_rsi_fast_handle_tf2 == INVALID_HANDLE ||
+            m_rsi_handle_tf3 == INVALID_HANDLE || m_rsi_fast_handle_tf3 == INVALID_HANDLE)
+         {
+            Print("Failed to create multi-timeframe indicators");
+            return false;
+         }
+      }
+      
+      return true;
    }
    
    //--- Prepare features for neural network input

@@ -7,7 +7,7 @@
 #property version   "1.00"
 #property script_show_inputs
 
-#include "..\mql5\Include\NeuroNetworksBook\realization\neuronnet.mqh"
+#include "../mql5/Include/NeuroNetworksBook/realization/neuronnet.mqh"
 #include "NNPredictorLib.mqh"
 
 //+------------------------------------------------------------------+

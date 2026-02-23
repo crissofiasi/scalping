@@ -51,7 +51,8 @@ input bool               Input_Use_Signal = true;                      // Enable
 input int                Input_RSI_Fast_Period = 5;                    // RSI Fast Period
 input int                Input_RSI_Slow_Period = 30;                   // RSI Slow Period
 input ENUM_APPLIED_PRICE Input_RSI_Price_Type = PRICE_CLOSE;           // RSI Price Type
-input double             Input_RSI_Trend_Level = 50.0;                 // RSI Trend Level
+input bool               Input_Use_RSI_Trend_Filter = true;            // Enable RSI Trend Level Filter
+input double             Input_RSI_Trend_Level = 50.0;                 // RSI Trend Level (only if filter enabled)
 input int                Input_Signal_Bar_Shift = 1;                   // Signal Bar Shift (0=current, 1=closed)
 
 //--- 3. Money Management (Base & Martingale)
@@ -343,17 +344,17 @@ int GetSignal()
    double rsi_slow_current = rsi_slow[Input_Signal_Bar_Shift];
    double rsi_slow_previous = rsi_slow[Input_Signal_Bar_Shift + 1];
    
-   //--- 3.4 Buy Signal: Fast crosses above Slow AND above trend level
+   //--- 3.4 Buy Signal: Fast crosses above Slow (with optional trend level filter)
    if(rsi_fast_previous <= rsi_slow_previous && rsi_fast_current > rsi_slow_current)
    {
-      if(rsi_fast_current > Input_RSI_Trend_Level)
+      if(!Input_Use_RSI_Trend_Filter || rsi_fast_current > Input_RSI_Trend_Level)
          return ORDER_TYPE_BUY;
    }
    
-   //--- 3.5 Sell Signal: Fast crosses below Slow AND below trend level
+   //--- 3.5 Sell Signal: Fast crosses below Slow (with optional trend level filter)
    if(rsi_fast_previous >= rsi_slow_previous && rsi_fast_current < rsi_slow_current)
    {
-      if(rsi_fast_current < Input_RSI_Trend_Level)
+      if(!Input_Use_RSI_Trend_Filter || rsi_fast_current < Input_RSI_Trend_Level)
          return ORDER_TYPE_SELL;
    }
    

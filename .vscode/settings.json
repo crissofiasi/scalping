@@ -1,4 +1,4 @@
-﻿{
+{
   "files.associations": {
     "*.mq5": "mql5",
     "*.mqh": "mql5",
@@ -11,5 +11,9 @@
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 1000,
   "workbench.colorTheme": "Monokai",
-  "workbench.iconTheme": "material-icon-theme"
+  "workbench.iconTheme": "material-icon-theme",
+  "chat.tools.terminal.autoApprove": {
+    "git commit": true,
+    "git add": true
+  }
 }

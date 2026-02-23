@@ -7,7 +7,7 @@
 #property strict
 
 #include <Trade\Trade.mqh>
-#include "..\mql5\Include\NeuroNetworksBook\realization\neuronnet.mqh"
+#include "../mql5/Include/NeuroNetworksBook/realization/neuronnet.mqh"
 #include "NNPredictorLib.mqh"
 
 //+------------------------------------------------------------------+
