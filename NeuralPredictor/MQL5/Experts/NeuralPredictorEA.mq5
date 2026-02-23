@@ -48,7 +48,7 @@ input int                Input_MACD_Signal = 9;                        // MACD S
 input int                Input_ATR_Period = 14;                        // ATR Period
 input int                Input_BB_Period = 20;                         // Bollinger Bands Period
 input double             Input_BB_Deviation = 2.0;                     // BB Deviation
-input int                Input_Lookback_Bars = 15;                     // Lookback Bars for Patterns
+input int                Input_Lookback_Bars = 61;                     // Lookback Bars (MUST MATCH TRAINING: 61 for 71 total features)
 
 //--- Money Management
 input group "Money Management"
@@ -530,10 +530,20 @@ bool LoadModel()
    // Architecture: 71 -> 142 -> 71 -> 35 -> 1 (dense layers only)
    CArrayObj *descriptions = new CArrayObj();
    
-   // Input layer (71 inputs)
+   // CRITICAL: Network must match trained model architecture!
+   // Training data: 71 features (8 indicators + 61 lookback + 2 time)
+   // If multi-TF: 3 timeframes × 25 features = 75 (requires retraining!)
+   const int TRAINED_INPUT_SIZE = 71;  // From Python training
+   
+   Print("Network architecture: ", TRAINED_INPUT_SIZE, " → 142 → 71 → 35 → 1");
+   Print("WARNING: EA MUST be configured for single timeframe with 61 lookback bars!");
+   Print("Current EA settings will generate: ", (Input_Use_Multi_Timeframe ? "3 TFs × " : ""), 
+         (8 + Input_Lookback_Bars + 2), " features");
+   
+   // Input layer (MUST match trained model: 71 inputs)
    CLayerDescription *input_desc = new CLayerDescription();
    input_desc.type = defNeuronBase;
-   input_desc.count = 71;  // Number of inputs (features)
+   input_desc.count = TRAINED_INPUT_SIZE;  // Fixed: 71 inputs from training
    input_desc.window = 0;
    input_desc.activation = AF_NONE;  // Input layer, no activation
    input_desc.optimization = None;
@@ -543,7 +553,7 @@ bool LoadModel()
    CLayerDescription *hidden1_desc = new CLayerDescription();
    hidden1_desc.type = defNeuronBase;
    hidden1_desc.count = 142;
-   hidden1_desc.window = 71;  // Input from previous layer
+   hidden1_desc.window = TRAINED_INPUT_SIZE;  // Input from previous layer
    hidden1_desc.activation = AF_SWISH;
    hidden1_desc.optimization = Adam;
    descriptions.Add(hidden1_desc);
