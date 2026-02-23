@@ -46,8 +46,8 @@ void OnStart()
       return;
    }
    
-   //--- Initialize library
-   g_lib.Initialize();
+   //--- Set indicator handles for library (primary timeframe)
+   g_lib.SetIndicatorHandles(g_rsi_handle, g_rsi_fast_handle, g_macd_handle, g_atr_handle, g_bb_handle);
    
    //--- Multi-timeframe setup
    if(Input_Use_Multi_Timeframe)
@@ -55,7 +55,7 @@ void OnStart()
       Print("Multi-Timeframe Mode: ", EnumToString(PERIOD_CURRENT), " + ", 
             EnumToString(Input_Timeframe_2), " + ", EnumToString(Input_Timeframe_3));
             
-      g_lib.EnableMultiTimeframe(Input_Timeframe_2, Input_Timeframe_3);
+      g_lib.EnableMultiTimeframe(true, Input_Timeframe_2, Input_Timeframe_3);
       
       // Initialize TF2 indicators
       g_rsi_handle_tf2 = iRSI(_Symbol, Input_Timeframe_2, 14, PRICE_CLOSE);
@@ -101,8 +101,7 @@ void OnStart()
    {
       //--- Extract features
       double features[];
-      if(!g_lib.PrepareFeatures(i, g_rsi_handle, g_rsi_fast_handle, g_macd_handle, 
-                                 g_atr_handle, g_bb_handle, features))
+      if(!g_lib.PrepareFeatures(features, i, 15))  // 15 lookback bars for price patterns
       {
          skipped_count++;
          continue;
