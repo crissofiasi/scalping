@@ -649,8 +649,9 @@ bool LoadModel()
             uint rows = test_weights.m_mMatrix.Rows();
             uint cols = test_weights.m_mMatrix.Cols();
             
-            // Match based on dimensions: rows should be input_size+1 (includes bias), cols should be output_size
-            if(rows == input_size + 1 && cols == output_size)
+            // MQL5 stores weights as: [output_size] x [input_size + 1]
+            // So rows = output_size, cols = input_size + 1
+            if(rows == output_size && cols == input_size + 1)
             {
                layer_idx = search_idx;
                Print("  -> Matched to MQL5 layer index ", layer_idx, " (", rows, "x", cols, ")");
@@ -680,48 +681,33 @@ bool LoadModel()
       uint matrix_rows = weights.m_mMatrix.Rows();
       uint matrix_cols = weights.m_mMatrix.Cols();
       
-      if(matrix_rows != input_size + 1 || matrix_cols != output_size)
+      // MQL5 format: [output_size] x [input_size + 1]
+      if(matrix_rows != output_size || matrix_cols != input_size + 1)
       {
          Print("ERROR: Matrix dimension mismatch before loading!");
-         Print("  Expected: ", input_size + 1, " x ", output_size);
+         Print("  Expected: ", output_size, " x ", input_size + 1);
          Print("  Got: ", matrix_rows, " x ", matrix_cols);
          FileClose(file_handle);
          return false;
       }
       
-      //--- Read and set weights (with bounds checking)
-      for(uint row = 0; row < input_size; row++)
+      //--- Read and set weights (with transposition for MQL5 format)
+      // Python format: [input][output], MQL5 format: [output][input]
+      for(uint in_idx = 0; in_idx < input_size; in_idx++)
       {
-         for(uint col = 0; col < output_size; col++)
+         for(uint out_idx = 0; out_idx < output_size; out_idx++)
          {
             double w = FileReadDouble(file_handle);
-            if(row < matrix_rows && col < matrix_cols)
-            {
-               weights.m_mMatrix[row, col] = w;
-            }
-            else
-            {
-               Print("ERROR: Attempted to access out of bounds: [", row, ",", col, "]");
-               FileClose(file_handle);
-               return false;
-            }
+            weights.m_mMatrix[out_idx, in_idx] = w;  // Transposed: [output][input]
          }
       }
       
-      //--- Read and set bias (with bounds checking)
-      for(uint col = 0; col < output_size; col++)
+      //--- Read and set bias
+      // Bias is stored at [output_idx, input_size] (last column)
+      for(uint out_idx = 0; out_idx < output_size; out_idx++)
       {
          double b = FileReadDouble(file_handle);
-         if(input_size < matrix_rows && col < matrix_cols)
-         {
-            weights.m_mMatrix[input_size, col] = b;  // Bias is stored in last row
-         }
-         else
-         {
-            Print("ERROR: Attempted to access bias out of bounds: [", input_size, ",", col, "]");
-            FileClose(file_handle);
-            return false;
-         }
+         weights.m_mMatrix[out_idx, input_size] = b;
       }
       
       Print("✓ Loaded weights for Python layer ", i, " -> MQL5 layer ", layer_idx);
