@@ -8,6 +8,7 @@
 
 #include <Trade\Trade.mqh>
 #include <NeuroNetworksBook/realization/neuronnet.mqh>
+#include <NeuroNetworksBook/realization/buffer.mqh>
 #include <NNPredictorLib.mqh>
 
 //+------------------------------------------------------------------+
@@ -300,26 +301,52 @@ int GetPrediction(double &confidence)
       return 0;
    }
    
+   //--- Create input buffer for CNet
+   CBufferType *input_buffer = new CBufferType();
+   if(!input_buffer || !input_buffer->BufferInit(1, ArraySize(features), 0))
+   {
+      Print("ERROR: Failed to create input buffer");
+      if(input_buffer) delete input_buffer;
+      confidence = 0.0;
+      return 0;
+   }
+   
+   //--- Copy features to buffer matrix
+   for(int i = 0; i < ArraySize(features); i++)
+      input_buffer->m_mMatrix[0, i] = features[i];
+   
    //--- Feed forward through network
-   if(!m_network->FeedForward(features))
+   if(!m_network->FeedForward(input_buffer))
    {
       Print("ERROR: Neural network feed forward failed");
+      delete input_buffer;
       confidence = 0.0;
       return 0;
    }
    
-   //--- Get output (probability of upward move)
-   double outputs[];
-   m_network->GetOutputs(outputs);
-   
-   if(ArraySize(outputs) == 0)
+   //--- Get output results
+   CBufferType *output_buffer = NULL;
+   if(!m_network->GetResults(output_buffer) || !output_buffer)
    {
-      Print("ERROR: No network outputs");
+      Print("ERROR: Failed to get network results");
+      delete input_buffer;
       confidence = 0.0;
       return 0;
    }
    
-   double probability = outputs[0]; // Output should be 0-1 (sigmoid)
+   //--- Extract output value
+   if(output_buffer->m_mMatrix.Rows() == 0 || output_buffer->m_mMatrix.Cols() == 0)
+   {
+      Print("ERROR: Empty output matrix");
+      delete input_buffer;
+      confidence = 0.0;
+      return 0;
+   }
+   
+   double probability = output_buffer->m_mMatrix[0, 0]; // Output should be 0-1 (sigmoid)
+   
+   //--- Clean up buffers
+   delete input_buffer;
    
    //--- Interpret output
    // probability > 0.5 = BUY (expecting upward move)
@@ -458,7 +485,7 @@ bool LoadModel()
    }
    
    //--- Load weights
-   if(!m_network->Load(filename, FILE_COMMON, false, 0.0, 0.0, 0.0))
+   if(!m_network->Load(filename, true))  // true = FILE_COMMON
    {
       Print("ERROR: Failed to load neural network weights from ", filename);
       return false;
