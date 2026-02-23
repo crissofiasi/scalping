@@ -598,11 +598,19 @@ bool LoadModel()
    for(int idx = 0; idx < 10; idx++)  // Check first 10 indices
    {
       CBufferType *test_weights = m_network.GetWeights(idx);
-      if(test_weights)
+      if(test_weights && CheckPointer(test_weights) == POINTER_DYNAMIC)
       {
-         uint rows = test_weights.m_mMatrix.Rows();
-         uint cols = test_weights.m_mMatrix.Cols();
-         Print("  Layer ", idx, " has weights: ", rows, " x ", cols);
+         // Use try-catch pattern with defensive coding
+         if(test_weights.m_mMatrix.Rows() > 0 && test_weights.m_mMatrix.Cols() > 0)
+         {
+            uint rows = test_weights.m_mMatrix.Rows();
+            uint cols = test_weights.m_mMatrix.Cols();
+            Print("  Layer ", idx, " has weights: ", rows, " x ", cols);
+         }
+         else
+         {
+            Print("  Layer ", idx, " has weights buffer but empty matrix");
+         }
       }
       else
       {
@@ -658,8 +666,12 @@ bool LoadModel()
       for(int search_idx = 0; search_idx < 10; search_idx++)
       {
          CBufferType *test_weights = m_network.GetWeights(search_idx);
-         if(test_weights)
+         if(test_weights && CheckPointer(test_weights) == POINTER_DYNAMIC)
          {
+            // Safely check if matrix is initialized before accessing dimensions
+            if(test_weights.m_mMatrix.Rows() == 0 || test_weights.m_mMatrix.Cols() == 0)
+               continue;  // Skip empty matrices
+            
             uint rows = test_weights.m_mMatrix.Rows();
             uint cols = test_weights.m_mMatrix.Cols();
             
@@ -667,7 +679,7 @@ bool LoadModel()
             if(rows == input_size + 1 && cols == output_size)
             {
                layer_idx = search_idx;
-               Print("  -> Matched to MQL5 layer index ", layer_idx);
+               Print("  -> Matched to MQL5 layer index ", layer_idx, " (", rows, "x", cols, ")");
                break;
             }
          }
@@ -683,22 +695,59 @@ bool LoadModel()
       
       //--- Get weights buffer using GetWeights method
       CBufferType *weights = m_network.GetWeights(layer_idx);
+      if(!weights || CheckPointer(weights) != POINTER_DYNAMIC)
+      {
+         Print("ERROR: Failed to get weights buffer for layer ", layer_idx);
+         FileClose(file_handle);
+         return false;
+      }
       
-      //--- Read and set weights
+      //--- Verify matrix dimensions one more time before writing
+      uint matrix_rows = weights.m_mMatrix.Rows();
+      uint matrix_cols = weights.m_mMatrix.Cols();
+      
+      if(matrix_rows != input_size + 1 || matrix_cols != output_size)
+      {
+         Print("ERROR: Matrix dimension mismatch before loading!");
+         Print("  Expected: ", input_size + 1, " x ", output_size);
+         Print("  Got: ", matrix_rows, " x ", matrix_cols);
+         FileClose(file_handle);
+         return false;
+      }
+      
+      //--- Read and set weights (with bounds checking)
       for(uint row = 0; row < input_size; row++)
       {
          for(uint col = 0; col < output_size; col++)
          {
             double w = FileReadDouble(file_handle);
-            weights.m_mMatrix[row, col] = w;
+            if(row < matrix_rows && col < matrix_cols)
+            {
+               weights.m_mMatrix[row, col] = w;
+            }
+            else
+            {
+               Print("ERROR: Attempted to access out of bounds: [", row, ",", col, "]");
+               FileClose(file_handle);
+               return false;
+            }
          }
       }
       
-      //--- Read and set bias
+      //--- Read and set bias (with bounds checking)
       for(uint col = 0; col < output_size; col++)
       {
          double b = FileReadDouble(file_handle);
-         weights.m_mMatrix[input_size, col] = b;  // Bias is stored in last row
+         if(input_size < matrix_rows && col < matrix_cols)
+         {
+            weights.m_mMatrix[input_size, col] = b;  // Bias is stored in last row
+         }
+         else
+         {
+            Print("ERROR: Attempted to access bias out of bounds: [", input_size, ",", col, "]");
+            FileClose(file_handle);
+            return false;
+         }
       }
       
       Print("✓ Loaded weights for Python layer ", i, " -> MQL5 layer ", layer_idx);
