@@ -323,10 +323,29 @@ int GetPrediction(double &confidence)
    for(int i = 0; i < ArraySize(features); i++)
       input_buffer.m_mMatrix[0, i] = features[i];
    
+   //--- Debug: Check buffer and network state
+   Print("DEBUG: Input buffer size: ", input_buffer.Rows(), "x", input_buffer.Cols(), " (Total: ", input_buffer.Total(), ")");
+   if(!CheckPointer(m_network) == POINTER_INVALID)
+   {
+      Print("DEBUG: Network pointer valid");
+      CBufferType *input_layer_output = m_network.GetWeights(0);
+      if(input_layer_output)
+         Print("DEBUG: Input layer exists");
+   }
+   else
+   {
+      Print("ERROR: Network pointer is invalid!");
+      delete input_buffer;
+      confidence = 0.0;
+      return 0;
+   }
+   
    //--- Feed forward through network
    if(!m_network.FeedForward(input_buffer))
    {
       Print("ERROR: Neural network feed forward failed");
+      Print("  Input buffer: ", input_buffer.Rows(), "x", input_buffer.Cols());
+      Print("  Network OpenCL mode: ", m_network.UseOpenCL());
       delete input_buffer;
       confidence = 0.0;
       return 0;
@@ -565,6 +584,11 @@ bool LoadModel()
    }
    
    delete descriptions;
+   
+   //--- Configure network for inference (no training, no OpenCL)
+   m_network.TrainMode(false);  // Inference mode
+   m_network.UseOpenCL(false);  // Disable OpenCL for CPU inference
+   Print("✓ Network configured for inference mode (CPU-only, no training)");
    
    //--- Debug: Check what layers were created and which have weights
    Print("✓ Network created successfully (5 layers: 1 input + 4 dense)");
