@@ -13,36 +13,36 @@
 //+------------------------------------------------------------------+
 //| Input Parameters                                                  |
 //+------------------------------------------------------------------+
-input group "═══════════ Training Data Settings ═══════════"
+input group "=========== Training Data Settings ==========="
 input string             Input_Symbol = "";                            // Symbol (empty = current)
 input ENUM_TIMEFRAMES    Input_Timeframe = PERIOD_M5;                  // Training Timeframe
 input int                Input_Training_Bars = 5000;                   // Number of Bars for Training
 input double             Input_Train_Test_Split = 0.80;                // Train/Test Split (0.80 = 80% train)
 input datetime           Input_Start_Date = D'2024.01.01';             // Start Date for Data
 
-input group "═══════════ Multi-Timeframe Analysis ═══════════"
+input group "=========== Multi-Timeframe Analysis ==========="
 input bool               Input_Use_Multi_Timeframe = false;            // Enable Multi-Timeframe Analysis
 input ENUM_TIMEFRAMES    Input_Timeframe_2 = PERIOD_M15;               // Timeframe 2 (Higher TF)
 input ENUM_TIMEFRAMES    Input_Timeframe_3 = PERIOD_M30;               // Timeframe 3 (Highest TF)
 
-input group "═══════════ Labeling Settings ═══════════"
+input group "=========== Labeling Settings ==========="
 input double             Input_Target_Move_Pips = 10.0;                // Target Move in Pips (for labeling)
 input int                Input_Lookforward_Bars = 20;                  // Lookforward Bars for Labeling
 input double             Input_Min_Move_Ratio = 0.7;                   // Min Move Ratio (0.7 = 70% of target)
 
-input group "═══════════ Network Architecture ═══════════"
+input group "=========== Network Architecture ==========="
 input int                Input_Hidden_Layer1 = 50;                     // Hidden Layer 1 Neurons
 input int                Input_Hidden_Layer2 = 30;                     // Hidden Layer 2 Neurons
 input int                Input_Hidden_Layer3 = 15;                     // Hidden Layer 3 (0=disabled)
 
-input group "═══════════ Training Parameters ═══════════"
+input group "=========== Training Parameters ==========="
 input int                Input_Epochs = 800;                           // Training Epochs
 input double             Input_Learning_Rate = 0.001;                  // Learning Rate
 input int                Input_Batch_Size = 32;                        // Batch Size
 input double             Input_Validation_Split = 0.15;                // Validation Split
 input bool               Input_Use_OpenCL = false;                     // Use OpenCL Acceleration
 
-input group "═══════════ Feature Settings ═══════════"
+input group "=========== Feature Settings ==========="
 input int                Input_RSI_Period = 14;                        // RSI Period
 input int                Input_RSI_Fast_Period = 5;                    // RSI Fast Period
 input int                Input_MACD_Fast = 12;                         // MACD Fast
@@ -53,7 +53,7 @@ input int                Input_BB_Period = 20;                         // BB Per
 input double             Input_BB_Deviation = 2.0;                     // BB Deviation
 input int                Input_Lookback_Bars = 15;                     // Lookback Bars for Patterns
 
-input group "═══════════ Output Settings ═══════════"
+input group "=========== Output Settings ==========="
 input string             Input_Model_File = "NNPredictor_Model.nnw";  // Output Model File
 input bool               Input_Save_Training_Log = true;               // Save Training Log
 
