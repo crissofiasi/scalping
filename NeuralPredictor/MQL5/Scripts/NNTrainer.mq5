@@ -60,7 +60,7 @@ input bool               Input_Save_Training_Log = true;               // Save T
 //+------------------------------------------------------------------+
 //| Global Variables                                                  |
 //+------------------------------------------------------------------+
-CNeuronNet          *m_network = NULL;
+CNet                *m_network = NULL;
 CNNPredictorLib     *m_predictor = NULL;
 
 int                  m_rsi_handle = INVALID_HANDLE;
@@ -381,7 +381,7 @@ void SplitTrainTest(TrainingData &all_data[], TrainingData &train[], TrainingDat
 //+------------------------------------------------------------------+
 bool CreateNeuralNetwork(int input_size)
 {
-   m_network = new CNeuronNet();
+   m_network = new CNet();
    
    if(m_network == NULL)
       return false;

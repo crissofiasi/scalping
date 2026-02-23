@@ -89,7 +89,7 @@ input bool               Input_Show_Predictions = true;                // Show P
 //| GLOBAL VARIABLES                                                  |
 //+------------------------------------------------------------------+
 CTrade               m_trade;
-CNeuronNet          *m_network = NULL;
+CNet                *m_network = NULL;
 CNNPredictorLib     *m_predictor = NULL;
 
 datetime             m_last_bar_time = 0;
@@ -130,7 +130,7 @@ int OnInit()
    }
    
    //--- Create neural network
-   m_network = new CNeuronNet();
+   m_network = new CNet();
    
    //--- Load trained model
    if(!LoadModel())
