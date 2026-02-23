@@ -30,30 +30,58 @@ neurongpt.mqh
 positionencoder.mqh			
 NNPredictorLib.mqh			
 'opencl_program.cl' as 'const string OCLprogram'			0
-'>' - operand expected	NeuralPredictorEA.mq5	304	18
-undeclared identifier 'FeedForward'	NeuralPredictorEA.mq5	304	19
-'features' - some operator expected	NeuralPredictorEA.mq5	304	31
-expression not boolean	NeuralPredictorEA.mq5	304	17
-'>' - operand expected	NeuralPredictorEA.mq5	313	14
-undeclared identifier 'GetOutputs'	NeuralPredictorEA.mq5	313	15
-'outputs' - some operator expected	NeuralPredictorEA.mq5	313	26
-'GetOutputs' - object pointer expected	NeuralPredictorEA.mq5	313	15
-expression has no effect	NeuralPredictorEA.mq5	313	13
-'>' - operand expected	NeuralPredictorEA.mq5	461	18
-undeclared identifier 'Load'	NeuralPredictorEA.mq5	461	19
-',' - unexpected token	NeuralPredictorEA.mq5	461	32
-'filename' - some operator expected	NeuralPredictorEA.mq5	461	24
-expression not boolean	NeuralPredictorEA.mq5	461	17
-'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	461	6
-',' - unexpected token	NeuralPredictorEA.mq5	461	45
-expression has no effect	NeuralPredictorEA.mq5	461	34
-',' - unexpected token	NeuralPredictorEA.mq5	461	52
-expression has no effect	NeuralPredictorEA.mq5	461	47
-',' - unexpected token	NeuralPredictorEA.mq5	461	57
-expression has no effect	NeuralPredictorEA.mq5	461	54
-',' - unexpected token	NeuralPredictorEA.mq5	461	62
-expression has no effect	NeuralPredictorEA.mq5	461	59
-')' - unexpected token	NeuralPredictorEA.mq5	461	67
-expression has no effect	NeuralPredictorEA.mq5	461	64
-')' - unexpected token	NeuralPredictorEA.mq5	461	68
-18 errors, 8 warnings		18	8
+'>' - operand expected	NeuralPredictorEA.mq5	306	38
+undeclared identifier 'BufferInit'	NeuralPredictorEA.mq5	306	39
+',' - unexpected token	NeuralPredictorEA.mq5	306	51
+'1' - some operator expected	NeuralPredictorEA.mq5	306	50
+expression not boolean	NeuralPredictorEA.mq5	306	37
+'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	306	6
+',' - unexpected token	NeuralPredictorEA.mq5	306	72
+')' - unexpected token	NeuralPredictorEA.mq5	306	75
+expression has no effect	NeuralPredictorEA.mq5	306	74
+')' - unexpected token	NeuralPredictorEA.mq5	306	76
+'>' - operand expected	NeuralPredictorEA.mq5	316	20
+undeclared identifier 'm_mMatrix'	NeuralPredictorEA.mq5	316	21
+'[' - array required	NeuralPredictorEA.mq5	316	30
+'m_mMatrix' - object pointer expected	NeuralPredictorEA.mq5	316	21
+cannot convert parameter 'double' to 'const CBufferType&'	NeuralPredictorEA.mq5	316	47
+   implicit void CBufferType::operator=(const CBufferType&)	buffer.mqh	17	7
+see hidden function(s):	NeuralPredictorEA.mq5	316	37
+   implicit void CObject::operator=(const CObject&)	Object.mqh	11	7
+'[' - object pointer expected	NeuralPredictorEA.mq5	316	47
+l-value required	NeuralPredictorEA.mq5	316	37
+'>' - operand expected	NeuralPredictorEA.mq5	319	18
+undeclared identifier 'FeedForward'	NeuralPredictorEA.mq5	319	19
+'input_buffer' - some operator expected	NeuralPredictorEA.mq5	319	31
+expression not boolean	NeuralPredictorEA.mq5	319	17
+'>' - operand expected	NeuralPredictorEA.mq5	329	18
+undeclared identifier 'GetResults'	NeuralPredictorEA.mq5	329	19
+'output_buffer' - some operator expected	NeuralPredictorEA.mq5	329	30
+expression not boolean	NeuralPredictorEA.mq5	329	17
+'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	329	6
+'||' - operand expected	NeuralPredictorEA.mq5	329	45
+')' - unexpected token	NeuralPredictorEA.mq5	329	62
+expression has no effect	NeuralPredictorEA.mq5	329	48
+'>' - operand expected	NeuralPredictorEA.mq5	338	21
+undeclared identifier 'm_mMatrix'	NeuralPredictorEA.mq5	338	22
+'m_mMatrix' - object pointer expected	NeuralPredictorEA.mq5	338	22
+'0' - object pointer expected	NeuralPredictorEA.mq5	338	42
+'>' - operand expected	NeuralPredictorEA.mq5	338	61
+undeclared identifier 'm_mMatrix'	NeuralPredictorEA.mq5	338	62
+'m_mMatrix' - object pointer expected	NeuralPredictorEA.mq5	338	62
+'0' - object pointer expected	NeuralPredictorEA.mq5	338	82
+'>' - operand expected	NeuralPredictorEA.mq5	346	39
+undeclared identifier 'm_mMatrix'	NeuralPredictorEA.mq5	346	40
+'[' - array required	NeuralPredictorEA.mq5	346	49
+'m_mMatrix' - object pointer expected	NeuralPredictorEA.mq5	346	40
+'=' - illegal operation use	NeuralPredictorEA.mq5	346	23
+'>' - operand expected	NeuralPredictorEA.mq5	488	18
+undeclared identifier 'Load'	NeuralPredictorEA.mq5	488	19
+',' - unexpected token	NeuralPredictorEA.mq5	488	32
+'filename' - some operator expected	NeuralPredictorEA.mq5	488	24
+expression not boolean	NeuralPredictorEA.mq5	488	17
+'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	488	6
+')' - unexpected token	NeuralPredictorEA.mq5	488	38
+expression has no effect	NeuralPredictorEA.mq5	488	34
+')' - unexpected token	NeuralPredictorEA.mq5	488	39
+44 errors, 7 warnings		44	7
