@@ -490,21 +490,28 @@ double CalculateLotSize()
 bool LoadModel()
 {
    string filename = Input_Model_File;
+   string common_path = TerminalInfoString(TERMINAL_COMMONDATA_PATH);
+   string full_path = common_path + "\\Files\\" + filename;
    
    //--- Check if file exists
    if(!FileIsExist(filename, FILE_COMMON))
    {
-      if(Input_Debug_Mode)
-         Print("Model file not found: ", filename);
+      Print("ERROR: Model file not found!");
+      Print("  Looking for: ", full_path);
+      Print("  Please copy model_weights.nnw to the Common Files folder");
       return false;
    }
+   
+   Print("Loading model from: ", full_path);
    
    //--- Load weights
    if(!m_network.Load(filename, true))  // true = FILE_COMMON
    {
-      Print("ERROR: Failed to load neural network weights from ", filename);
+      Print("ERROR: Failed to load neural network weights from: ", full_path);
       return false;
    }
+   
+   Print("✓ Model loaded successfully from: ", full_path);
    
    //--- Store file modification time
    m_model_last_modified = (datetime)FileGetInteger(filename, FILE_MODIFY_DATE, FILE_COMMON);
