@@ -5,6 +5,9 @@
 #property copyright "Neural Predictor Library"
 #property version   "1.00"
 
+#ifndef NNPREDICTORLIB_MQH
+#define NNPREDICTORLIB_MQH
+
 //+------------------------------------------------------------------+
 //| Neural Predictor Library Class                                    |
 //+------------------------------------------------------------------+
@@ -338,4 +341,6 @@ public:
       return normalized;
    }
 };
+
+#endif // NNPREDICTORLIB_MQH
 //+------------------------------------------------------------------+
