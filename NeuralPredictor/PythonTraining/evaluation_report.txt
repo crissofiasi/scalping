@@ -2,7 +2,7 @@
 NEURAL NETWORK TRAINING REPORT
 ============================================================
 
-Generated: 2026-02-23 12:25:22
+Generated: 2026-02-23 15:41:05
 
 Training Configuration:
   Data File: nn_training_data.csv
@@ -12,17 +12,17 @@ Training Configuration:
   Dropout Rate: 0.3
   L2 Regularization: 0.0001
 
-Training Time: 80.76 seconds
+Training Time: 305.90 seconds
 
 Test Set Performance:
-  Accuracy:  95.07%
-  Precision: 93.88%
-  Recall:    97.39%
+  Accuracy:  88.41%
+  Precision: 87.75%
+  Recall:    88.11%
 
 Confusion Matrix:
-  True Negatives (SELL):  404
-  False Positives:        34
-  False Negatives:        14
-  True Positives (BUY):   522
+  True Negatives (SELL):  2358
+  False Positives:        301
+  False Negatives:        291
+  True Positives (BUY):   2157
 
 ============================================================

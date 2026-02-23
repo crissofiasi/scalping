@@ -201,7 +201,7 @@ bool LoadPythonWeights(CNet &network)
 }
 """
         
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(code)
         
         print(f"✅ MQL5 loader code generated")
