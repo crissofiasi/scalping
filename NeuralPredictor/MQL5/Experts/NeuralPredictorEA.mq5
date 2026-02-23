@@ -15,14 +15,14 @@
 //+------------------------------------------------------------------+
 
 //--- General Settings
-input group "=========== General Settings ==========="
+input group "General Settings"
 input string             Input_Symbol = "";                            // Symbol (empty = current)
 input int                Input_Magic_Number = 20260223;                // Magic Number
 input string             Input_Comment = "NN_Pred";                    // Trade Comment
 input bool               Input_Enable_EA = true;                       // Master EA Enable
 
 //--- Neural Network Settings
-input group "=========== Neural Network Settings ==========="
+input group "Neural Network Settings"
 input string             Input_Model_File = "NNPredictor_Model.nnw";  // Model Weights File
 input double             Input_Min_Confidence = 0.65;                  // Minimum Confidence (0.5-1.0)
 input double             Input_Target_Move_Pips = 10.0;                // Target Move in Pips
@@ -31,13 +31,13 @@ input int                Input_Prediction_Bar_Shift = 1;               // Bar Sh
 input ENUM_TIMEFRAMES    Input_Prediction_Timeframe = PERIOD_M5;       // Prediction Timeframe
 
 //--- Multi-Timeframe Analysis
-input group "=========== Multi-Timeframe Analysis ==========="
+input group "Multi-Timeframe Analysis"
 input bool               Input_Use_Multi_Timeframe = false;            // Enable Multi-Timeframe Analysis
 input ENUM_TIMEFRAMES    Input_Timeframe_2 = PERIOD_M15;               // Timeframe 2 (Higher TF)
 input ENUM_TIMEFRAMES    Input_Timeframe_3 = PERIOD_M30;               // Timeframe 3 (Highest TF)
 
 //--- Feature Settings (Indicators for NN Input)
-input group "=========== Feature Settings ==========="
+input group "Feature Settings"
 input int                Input_RSI_Period = 14;                        // RSI Period
 input int                Input_RSI_Fast_Period = 5;                    // RSI Fast Period
 input int                Input_MACD_Fast = 12;                         // MACD Fast EMA
@@ -49,7 +49,7 @@ input double             Input_BB_Deviation = 2.0;                     // BB Dev
 input int                Input_Lookback_Bars = 15;                     // Lookback Bars for Patterns
 
 //--- Money Management
-input group "=========== Money Management ==========="
+input group "Money Management"
 input double             Input_Fixed_Lot = 0.01;                       // Fixed Lot Size
 input bool               Input_Use_Auto_Lot = false;                   // Use Auto Lot (Risk %)
 input double             Input_Risk_Percent = 1.0;                     // Risk Percent (if Auto Lot)
@@ -57,7 +57,7 @@ input double             Input_Max_Lot = 0.50;                         // Maximu
 input int                Input_Max_Open_Positions = 3;                 // Max Open Positions
 
 //--- Trade Management
-input group "=========== Trade Management ==========="
+input group "Trade Management"
 input bool               Input_Use_Stop_Loss = true;                   // Use Stop Loss
 input double             Input_Stop_Loss_Pips = 20.0;                  // Stop Loss in Pips
 input bool               Input_Use_Take_Profit = true;                 // Use Take Profit
@@ -68,20 +68,20 @@ input double             Input_Trailing_Step_Pips = 5.0;               // Traili
 input bool               Input_Close_On_Opposite = true;               // Close on Opposite Signal
 
 //--- Risk Management
-input group "=========== Risk Management ==========="
+input group "Risk Management"
 input bool               Input_Use_Daily_Loss_Limit = true;            // Enable Daily Loss Limit
 input double             Input_Daily_Loss_Limit = 100.0;               // Daily Loss Limit
 input bool               Input_Use_Max_Spread = true;                  // Enable Max Spread Filter
 input double             Input_Max_Spread_Pips = 3.0;                  // Max Spread in Pips
 
 //--- Trading Hours
-input group "=========== Trading Hours ==========="
+input group "Trading Hours"
 input bool               Input_Use_Trading_Hours = false;              // Enable Trading Hours
 input int                Input_Start_Hour = 0;                         // Start Hour
 input int                Input_End_Hour = 23;                          // End Hour
 
 //--- Debug
-input group "=========== Debug ==========="
+input group "Debug"
 input bool               Input_Debug_Mode = false;                     // Debug Mode
 input bool               Input_Show_Predictions = true;                // Show Predictions on Chart
 
