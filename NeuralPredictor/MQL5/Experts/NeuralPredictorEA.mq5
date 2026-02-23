@@ -302,6 +302,31 @@ int GetPrediction(double &confidence)
       return 0;
    }
    
+   //--- CRITICAL VALIDATION: Check feature count matches trained model
+   const int TRAINED_INPUT_SIZE = 71;
+   int actual_features = ArraySize(features);
+   if(actual_features != TRAINED_INPUT_SIZE)
+   {
+      Print("======================================================================");
+      Print("CRITICAL ERROR: Feature count mismatch!");
+      Print("  Trained model expects: ", TRAINED_INPUT_SIZE, " features");
+      Print("  EA is generating: ", actual_features, " features");
+      Print("");
+      Print("SOLUTION: Change EA input settings to:");
+      Print("  Input_Lookback_Bars = 61");
+      Print("  Input_Use_Multi_Timeframe = false");
+      Print("");
+      Print("Current settings detected:");
+      Print("  Input_Lookback_Bars = ", Input_Lookback_Bars);
+      Print("  Input_Use_Multi_Timeframe = ", Input_Use_Multi_Timeframe);
+      Print("  Expected: (8 indicators + 61 lookback + 2 time) × 1 TF = 71");
+      Print("  Actual: (8 indicators + ", Input_Lookback_Bars, " lookback + 2 time) × ", 
+            (Input_Use_Multi_Timeframe ? "3 TFs" : "1 TF"), " = ", actual_features);
+      Print("======================================================================");
+      confidence = 0.0;
+      return 0;
+   }
+   
    //--- Create input buffer for CNet
    CBufferType *input_buffer = new CBufferType();
    if(!input_buffer)
