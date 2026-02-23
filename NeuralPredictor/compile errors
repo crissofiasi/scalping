@@ -38,45 +38,36 @@ declaration without type	NeuralPredictorEA.mq5	133	20
 cannot resolve function call 'CNeuronNet'	NeuralPredictorEA.mq5	133	20
 expression of 'void' type is illegal	NeuralPredictorEA.mq5	133	16
 '=' - illegal operation use	NeuralPredictorEA.mq5	133	14
-undeclared identifier 'm_rsi_handle'	NeuralPredictorEA.mq5	176	7
-undeclared identifier 'm_rsi_handle'	NeuralPredictorEA.mq5	176	56
-undeclared identifier 'm_rsi_fast_handle'	NeuralPredictorEA.mq5	177	7
-undeclared identifier 'm_rsi_fast_handle'	NeuralPredictorEA.mq5	177	61
-undeclared identifier 'm_macd_handle'	NeuralPredictorEA.mq5	178	7
-undeclared identifier 'm_macd_handle'	NeuralPredictorEA.mq5	178	57
-undeclared identifier 'm_atr_handle'	NeuralPredictorEA.mq5	179	7
-undeclared identifier 'm_atr_handle'	NeuralPredictorEA.mq5	179	56
-undeclared identifier 'm_bb_handle'	NeuralPredictorEA.mq5	180	7
-undeclared identifier 'm_bb_handle'	NeuralPredictorEA.mq5	180	55
-undeclared identifier 'm_rsi_handle_tf2'	NeuralPredictorEA.mq5	183	7
-undeclared identifier 'm_rsi_handle_tf2'	NeuralPredictorEA.mq5	183	60
-undeclared identifier 'm_rsi_fast_handle_tf2'	NeuralPredictorEA.mq5	184	7
-undeclared identifier 'm_rsi_fast_handle_tf2'	NeuralPredictorEA.mq5	184	65
-undeclared identifier 'm_macd_handle_tf2'	NeuralPredictorEA.mq5	185	7
-undeclared identifier 'm_macd_handle_tf2'	NeuralPredictorEA.mq5	185	61
-undeclared identifier 'm_atr_handle_tf2'	NeuralPredictorEA.mq5	186	7
-undeclared identifier 'm_atr_handle_tf2'	NeuralPredictorEA.mq5	186	60
-undeclared identifier 'm_bb_handle_tf2'	NeuralPredictorEA.mq5	187	7
-undeclared identifier 'm_bb_handle_tf2'	NeuralPredictorEA.mq5	187	59
-undeclared identifier 'm_rsi_handle_tf3'	NeuralPredictorEA.mq5	189	7
-undeclared identifier 'm_rsi_handle_tf3'	NeuralPredictorEA.mq5	189	60
-undeclared identifier 'm_rsi_fast_handle_tf3'	NeuralPredictorEA.mq5	190	7
-undeclared identifier 'm_rsi_fast_handle_tf3'	NeuralPredictorEA.mq5	190	65
-undeclared identifier 'm_macd_handle_tf3'	NeuralPredictorEA.mq5	191	7
-undeclared identifier 'm_macd_handle_tf3'	NeuralPredictorEA.mq5	191	61
-undeclared identifier 'm_atr_handle_tf3'	NeuralPredictorEA.mq5	192	7
-undeclared identifier 'm_atr_handle_tf3'	NeuralPredictorEA.mq5	192	60
-undeclared identifier 'm_bb_handle_tf3'	NeuralPredictorEA.mq5	193	7
-undeclared identifier 'm_bb_handle_tf3'	NeuralPredictorEA.mq5	193	59
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	196	7
-'!=' - illegal operation use	NeuralPredictorEA.mq5	196	17
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	196	33
-'m_network' - object pointer expected	NeuralPredictorEA.mq5	196	33
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	324	8
-';' - unexpected token	NeuralPredictorEA.mq5	326	57
-'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	324	6
-empty controlled statement found	NeuralPredictorEA.mq5	326	57
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	481	8
-';' - unexpected token	NeuralPredictorEA.mq5	483	76
-'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	481	6
-empty controlled statement found	NeuralPredictorEA.mq5	483	76
+undeclared identifier 'm_network'	NeuralPredictorEA.mq5	176	7
+'!=' - illegal operation use	NeuralPredictorEA.mq5	176	17
+undeclared identifier 'm_network'	NeuralPredictorEA.mq5	176	33
+'m_network' - object pointer expected	NeuralPredictorEA.mq5	176	33
+undeclared identifier 'm_network'	NeuralPredictorEA.mq5	304	8
+'>' - operand expected	NeuralPredictorEA.mq5	304	18
+undeclared identifier 'FeedForward'	NeuralPredictorEA.mq5	304	19
+'features' - some operator expected	NeuralPredictorEA.mq5	304	31
+expression not boolean	NeuralPredictorEA.mq5	304	17
+undeclared identifier 'm_network'	NeuralPredictorEA.mq5	313	4
+'>' - operand expected	NeuralPredictorEA.mq5	313	14
+undeclared identifier 'GetOutputs'	NeuralPredictorEA.mq5	313	15
+'outputs' - some operator expected	NeuralPredictorEA.mq5	313	26
+result of expression not used	NeuralPredictorEA.mq5	313	13
+undeclared identifier 'm_network'	NeuralPredictorEA.mq5	461	8
+'>' - operand expected	NeuralPredictorEA.mq5	461	18
+undeclared identifier 'Load'	NeuralPredictorEA.mq5	461	19
+',' - unexpected token	NeuralPredictorEA.mq5	461	32
+'filename' - some operator expected	NeuralPredictorEA.mq5	461	24
+expression not boolean	NeuralPredictorEA.mq5	461	17
+'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	461	6
+',' - unexpected token	NeuralPredictorEA.mq5	461	45
+expression has no effect	NeuralPredictorEA.mq5	461	34
+',' - unexpected token	NeuralPredictorEA.mq5	461	52
+expression has no effect	NeuralPredictorEA.mq5	461	47
+',' - unexpected token	NeuralPredictorEA.mq5	461	57
+expression has no effect	NeuralPredictorEA.mq5	461	54
+',' - unexpected token	NeuralPredictorEA.mq5	461	62
+expression has no effect	NeuralPredictorEA.mq5	461	59
+')' - unexpected token	NeuralPredictorEA.mq5	461	67
+expression has no effect	NeuralPredictorEA.mq5	461	64
+')' - unexpected token	NeuralPredictorEA.mq5	461	68
+32 errors, 8 warnings		32	8
