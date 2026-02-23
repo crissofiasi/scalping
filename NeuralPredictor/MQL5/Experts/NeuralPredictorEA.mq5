@@ -505,8 +505,10 @@ bool LoadModel()
    
    Print("Loading Python-trained model from: ", full_path);
    
-   //--- Create network architecture manually
-   // Architecture: 71 -> 142 -> 71 -> 35 -> 1
+   //--- Create network architecture manually (WITHOUT batch norm for inference)
+   // Python training had batch norm, but we only exported dense layer weights
+   // For inference, we can skip batch norm layers
+   // Architecture: 71 -> 142 -> 71 -> 35 -> 1 (dense layers only)
    CArrayObj *descriptions = new CArrayObj();
    
    // Input layer (71 inputs)
@@ -527,56 +529,29 @@ bool LoadModel()
    hidden1_desc.optimization = Adam;
    descriptions.Add(hidden1_desc);
    
-   // Batch Normalization 1
-   CLayerDescription *bn1_desc = new CLayerDescription();
-   bn1_desc.type = defNeuronBatchNorm;
-   bn1_desc.count = 142;
-   bn1_desc.window = 142;
-   bn1_desc.activation = AF_NONE;
-   bn1_desc.optimization = Adam;
-   descriptions.Add(bn1_desc);
-   
    // Hidden layer 2: 71 neurons, Swish activation
    CLayerDescription *hidden2_desc = new CLayerDescription();
    hidden2_desc.type = defNeuronBase;
    hidden2_desc.count = 71;
-   hidden2_desc.window = 142;
+   hidden2_desc.window = 142;  // Input from hidden1
    hidden2_desc.activation = AF_SWISH;
    hidden2_desc.optimization = Adam;
    descriptions.Add(hidden2_desc);
-   
-   // Batch Normalization 2
-   CLayerDescription *bn2_desc = new CLayerDescription();
-   bn2_desc.type = defNeuronBatchNorm;
-   bn2_desc.count = 71;
-   bn2_desc.window = 71;
-   bn2_desc.activation = AF_NONE;
-   bn2_desc.optimization = Adam;
-   descriptions.Add(bn2_desc);
    
    // Hidden layer 3: 35 neurons, Swish activation
    CLayerDescription *hidden3_desc = new CLayerDescription();
    hidden3_desc.type = defNeuronBase;
    hidden3_desc.count = 35;
-   hidden3_desc.window = 71;
+   hidden3_desc.window = 71;  // Input from hidden2
    hidden3_desc.activation = AF_SWISH;
    hidden3_desc.optimization = Adam;
    descriptions.Add(hidden3_desc);
-   
-   // Batch Normalization 3
-   CLayerDescription *bn3_desc = new CLayerDescription();
-   bn3_desc.type = defNeuronBatchNorm;
-   bn3_desc.count = 35;
-   bn3_desc.window = 35;
-   bn3_desc.activation = AF_NONE;
-   bn3_desc.optimization = Adam;
-   descriptions.Add(bn3_desc);
    
    // Output layer: 1 neuron, Sigmoid activation
    CLayerDescription *output_desc = new CLayerDescription();
    output_desc.type = defNeuronBase;
    output_desc.count = 1;
-   output_desc.window = 35;
+   output_desc.window = 35;  // Input from hidden3
    output_desc.activation = AF_SIGMOID;
    output_desc.optimization = Adam;
    descriptions.Add(output_desc);
@@ -592,10 +567,10 @@ bool LoadModel()
    delete descriptions;
    
    //--- Debug: Check what layers were created and which have weights
-   Print("✓ Network created successfully");
+   Print("✓ Network created successfully (5 layers: 1 input + 4 dense)");
    Print("Checking created layers and their weights...");
    
-   for(int idx = 0; idx < 10; idx++)  // Check first 10 indices
+   for(int idx = 0; idx < 5; idx++)  // Should only have 5 layers now
    {
       CBufferType *test_weights = m_network.GetWeights(idx);
       if(test_weights && CheckPointer(test_weights) == POINTER_DYNAMIC)
@@ -614,11 +589,11 @@ bool LoadModel()
       }
       else
       {
-         Print("  Layer ", idx, " has NO weights (input layer or out of range)");
+         Print("  Layer ", idx, " has NO weights (input layer)");
       }
    }
    
-   Print("Attempting to load weights for 4 dense layers...");
+   Print("Attempting to load 4 Python layers into MQL5 layers 1-4...");
    
    //--- Load weights from Python binary file
    int file_handle = FileOpen(filename, FILE_READ | FILE_BIN | FILE_SHARE_READ | FILE_COMMON);
@@ -650,9 +625,8 @@ bool LoadModel()
    }
    
    //--- Load weights from Python binary file
-   // Based on the debug output above, adjust these indices if needed
-   // Expected: layers with weights are the dense layers (not batch norm or input)
-   int dense_layer_indices[] = {1, 3, 5, 7};  // Initial guess - will be verified
+   // Network now has 5 layers: 0=input (no weights), 1-4=dense layers with weights
+   // Python file has 4 layers that should map to MQL5 indices 1, 2, 3, 4
    
    for(uint i = 0; i < num_layers; i++)
    {
@@ -663,7 +637,7 @@ bool LoadModel()
       
       // Try to find the corresponding layer in the network
       int layer_idx = -1;
-      for(int search_idx = 0; search_idx < 10; search_idx++)
+      for(int search_idx = 1; search_idx <= 4; search_idx++)  // Search layers 1-4 (dense layers)
       {
          CBufferType *test_weights = m_network.GetWeights(search_idx);
          if(test_weights && CheckPointer(test_weights) == POINTER_DYNAMIC)
