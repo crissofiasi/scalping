@@ -23,69 +23,32 @@ neuronbatchnorm.mqh
 neurongpt.mqh			
 positionencoder.mqh			
 'opencl_program.cl' as 'const string OCLprogram'			0
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	buffer.mqh	326	54
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	buffer.mqh	427	45
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	buffer.mqh	480	51
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-wrong parameters count, 5 passed, but 4 requires	activation.mqh	647	21
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-call resolves to 'bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])' instead of 'bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])' due to new rules of method hiding	activation.mqh	647	21
-   see declaration of function 'CMyOpenCL::Execute'	opencl.mqh	27	19
-   see declaration of function 'COpenCL::Execute'	OpenCL.mqh	83	22
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	542	49
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	599	54
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	654	53
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	712	53
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	777	54
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	845	50
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronconv.mqh	220	62
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronconv.mqh	314	66
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronlstm.mqh	400	55
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronlstm.mqh	664	62
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 wrong parameters count, 5 passed, but 4 requires	neuronattention.mqh	558	21
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
+wrong parameters count, 5 passed, but 4 requires	neuronattention.mqh	558	21
+parameter convertion type 'int[1]' to 'uint[] &' is not allowed	neuronattention.mqh	558	54
+could be one of 3 function(s)	neuronattention.mqh	558	21
+   bool CMyOpenCL::Execute(const int,const int,int&[],int&[])	opencl.mqh	28	22
+   bool CMyOpenCL::Execute(const int,const int,uint&[],uint&[])	opencl.mqh	40	22
+   bool CMyOpenCL::Execute(const int,const int,uint&[],uint&[],uint&[])	opencl.mqh	46	22
 wrong parameters count, 5 passed, but 4 requires	neuronattention.mqh	596	21
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronattention.mqh	271	60
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronattention.mqh	382	63
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronattention.mqh	405	64
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronmhattention.mqh	275	60
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronmhattention.mqh	416	63
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronmhattention.mqh	441	64
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurondropout.mqh	165	51
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurondropout.mqh	238	51
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbatchnorm.mqh	278	70
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbatchnorm.mqh	325	65
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
+wrong parameters count, 5 passed, but 4 requires	neuronattention.mqh	596	21
+parameter convertion type 'int[1]' to 'uint[] &' is not allowed	neuronattention.mqh	596	62
+could be one of 3 function(s)	neuronattention.mqh	596	21
+   bool CMyOpenCL::Execute(const int,const int,int&[],int&[])	opencl.mqh	28	22
+   bool CMyOpenCL::Execute(const int,const int,uint&[],uint&[])	opencl.mqh	40	22
+   bool CMyOpenCL::Execute(const int,const int,uint&[],uint&[],uint&[])	opencl.mqh	46	22
 wrong parameters count, 5 passed, but 4 requires	neurongpt.mqh	850	21
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
+wrong parameters count, 5 passed, but 4 requires	neurongpt.mqh	850	21
+parameter convertion type 'int[1]' to 'uint[] &' is not allowed	neurongpt.mqh	850	54
+could be one of 3 function(s)	neurongpt.mqh	850	21
+   bool CMyOpenCL::Execute(const int,const int,int&[],int&[])	opencl.mqh	28	22
+   bool CMyOpenCL::Execute(const int,const int,uint&[],uint&[])	opencl.mqh	40	22
+   bool CMyOpenCL::Execute(const int,const int,uint&[],uint&[],uint&[])	opencl.mqh	46	22
 wrong parameters count, 5 passed, but 4 requires	neurongpt.mqh	888	21
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurongpt.mqh	455	57
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurongpt.mqh	632	60
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurongpt.mqh	653	61
-   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
-31 errors, 1 warnings		31	1
+wrong parameters count, 5 passed, but 4 requires	neurongpt.mqh	888	21
+parameter convertion type 'int[1]' to 'uint[] &' is not allowed	neurongpt.mqh	888	62
+could be one of 3 function(s)	neurongpt.mqh	888	21
+   bool CMyOpenCL::Execute(const int,const int,int&[],int&[])	opencl.mqh	28	22
+   bool CMyOpenCL::Execute(const int,const int,uint&[],uint&[])	opencl.mqh	40	22
+   bool CMyOpenCL::Execute(const int,const int,uint&[],uint&[],uint&[])	opencl.mqh	46	22
+12 errors, 0 warnings		12	0
