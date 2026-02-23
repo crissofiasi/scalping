@@ -9,6 +9,7 @@
 #include <Trade\Trade.mqh>
 #include <NeuroNetworksBook/realization/neuronnet.mqh>
 #include <NeuroNetworksBook/realization/buffer.mqh>
+#include <NeuroNetworksBook/realization/layerdescription.mqh>
 #include <NNPredictorLib.mqh>
 
 //+------------------------------------------------------------------+
@@ -502,14 +503,164 @@ bool LoadModel()
       return false;
    }
    
-   Print("Loading model from: ", full_path);
+   Print("Loading Python-trained model from: ", full_path);
    
-   //--- Load weights
-   if(!m_network.Load(filename, true))  // true = FILE_COMMON
+   //--- Create network architecture manually
+   // Architecture: 71 -> 142 -> 71 -> 35 -> 1
+   CArrayObj *descriptions = new CArrayObj();
+   
+   // Input layer (71 inputs)
+   CLayerDescription *input_desc = new CLayerDescription();
+   input_desc.type = defNeuronBase;
+   input_desc.count = 71;  // Number of inputs (features)
+   input_desc.window = 0;
+   input_desc.activation = AF_NONE;  // Input layer, no activation
+   input_desc.optimization = None;
+   descriptions.Add(input_desc);
+   
+   // Hidden layer 1: 142 neurons, Swish activation
+   CLayerDescription *hidden1_desc = new CLayerDescription();
+   hidden1_desc.type = defNeuronBase;
+   hidden1_desc.count = 142;
+   hidden1_desc.window = 71;  // Input from previous layer
+   hidden1_desc.activation = AF_SWISH;
+   hidden1_desc.optimization = Adam;
+   descriptions.Add(hidden1_desc);
+   
+   // Batch Normalization 1
+   CLayerDescription *bn1_desc = new CLayerDescription();
+   bn1_desc.type = defNeuronBatchNorm;
+   bn1_desc.count = 142;
+   bn1_desc.window = 142;
+   bn1_desc.activation = AF_NONE;
+   bn1_desc.optimization = Adam;
+   descriptions.Add(bn1_desc);
+   
+   // Hidden layer 2: 71 neurons, Swish activation
+   CLayerDescription *hidden2_desc = new CLayerDescription();
+   hidden2_desc.type = defNeuronBase;
+   hidden2_desc.count = 71;
+   hidden2_desc.window = 142;
+   hidden2_desc.activation = AF_SWISH;
+   hidden2_desc.optimization = Adam;
+   descriptions.Add(hidden2_desc);
+   
+   // Batch Normalization 2
+   CLayerDescription *bn2_desc = new CLayerDescription();
+   bn2_desc.type = defNeuronBatchNorm;
+   bn2_desc.count = 71;
+   bn2_desc.window = 71;
+   bn2_desc.activation = AF_NONE;
+   bn2_desc.optimization = Adam;
+   descriptions.Add(bn2_desc);
+   
+   // Hidden layer 3: 35 neurons, Swish activation
+   CLayerDescription *hidden3_desc = new CLayerDescription();
+   hidden3_desc.type = defNeuronBase;
+   hidden3_desc.count = 35;
+   hidden3_desc.window = 71;
+   hidden3_desc.activation = AF_SWISH;
+   hidden3_desc.optimization = Adam;
+   descriptions.Add(hidden3_desc);
+   
+   // Batch Normalization 3
+   CLayerDescription *bn3_desc = new CLayerDescription();
+   bn3_desc.type = defNeuronBatchNorm;
+   bn3_desc.count = 35;
+   bn3_desc.window = 35;
+   bn3_desc.activation = AF_NONE;
+   bn3_desc.optimization = Adam;
+   descriptions.Add(bn3_desc);
+   
+   // Output layer: 1 neuron, Sigmoid activation
+   CLayerDescription *output_desc = new CLayerDescription();
+   output_desc.type = defNeuronBase;
+   output_desc.count = 1;
+   output_desc.window = 35;
+   output_desc.activation = AF_SIGMOID;
+   output_desc.optimization = Adam;
+   descriptions.Add(output_desc);
+   
+   //--- Create network
+   if(!m_network.Create(descriptions))
    {
-      Print("ERROR: Failed to load neural network weights from: ", full_path);
+      Print("ERROR: Failed to create network architecture");
+      delete descriptions;
       return false;
    }
+   
+   delete descriptions;
+   Print("✓ Network architecture created: 71->142->71->35->1");
+   
+   //--- Load weights from Python binary file
+   int file_handle = FileOpen(filename, FILE_READ | FILE_BIN | FILE_SHARE_READ | FILE_COMMON);
+   if(file_handle == INVALID_HANDLE)
+   {
+      Print("ERROR: Failed to open weights file: ", full_path);
+      return false;
+   }
+   
+   //--- Read header
+   uint magic = FileReadInteger(file_handle);
+   uint version = FileReadInteger(file_handle);
+   uint num_layers = FileReadInteger(file_handle);
+   
+   Print("Weight file header: Magic=0x", IntegerToString(magic, 16), " Version=", version, " Layers=", num_layers);
+   
+   if(magic != 0x4E4E5720)  // "NNW "
+   {
+      Print("ERROR: Invalid magic number in weights file");
+      FileClose(file_handle);
+      return false;
+   }
+   
+   if(num_layers != 4)  // We expect 4 layers (without batch norm)
+   {
+      Print("ERROR: Expected 4 layers, got ", num_layers);
+      FileClose(file_handle);
+      return false;
+   }
+   
+   //--- Load weights from Python binary layers (we skip batch norm layers in weight loading)
+   int dense_layer_indices[] = {1, 3, 5, 7};  // Indices of dense layers in CNet
+   
+   for(uint i = 0; i < num_layers; i++)
+   {
+      uint input_size = FileReadInteger(file_handle);
+      uint output_size = FileReadInteger(file_handle);
+      
+      Print("Layer ", i, ": ", input_size, " -> ", output_size);
+      
+      //--- Get weights buffer using GetWeights method
+      CBufferType *weights = m_network.GetWeights(dense_layer_indices[i]);
+      if(!weights)
+      {
+         Print("ERROR: No weights buffer for layer ", dense_layer_indices[i]);
+         FileClose(file_handle);
+         return false;
+      }
+      
+      //--- Read and set weights
+      for(uint row = 0; row < input_size; row++)
+      {
+         for(uint col = 0; col < output_size; col++)
+         {
+            double w = FileReadDouble(file_handle);
+            weights.m_mMatrix[row, col] = w;
+         }
+      }
+      
+      //--- Read and set bias
+      for(uint col = 0; col < output_size; col++)
+      {
+         double b = FileReadDouble(file_handle);
+         weights.m_mMatrix[input_size, col] = b;  // Bias is stored in last row
+      }
+      
+      Print("✓ Loaded weights for layer ", i);
+   }
+   
+   FileClose(file_handle);
    
    Print("✓ Model loaded successfully from: ", full_path);
    
