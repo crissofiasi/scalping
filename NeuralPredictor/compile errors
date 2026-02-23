@@ -30,29 +30,15 @@ neurongpt.mqh
 positionencoder.mqh			
 NNPredictorLib.mqh			
 'opencl_program.cl' as 'const string OCLprogram'			0
-'CNeuronNet' - unexpected token, probably type is missing?	NeuralPredictorEA.mq5	92	1
-'*' - semicolon expected	NeuralPredictorEA.mq5	92	21
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	133	4
-declaration without type	NeuralPredictorEA.mq5	133	20
-'CNeuronNet' - class type expected	NeuralPredictorEA.mq5	133	20
-cannot resolve function call 'CNeuronNet'	NeuralPredictorEA.mq5	133	20
-expression of 'void' type is illegal	NeuralPredictorEA.mq5	133	16
-'=' - illegal operation use	NeuralPredictorEA.mq5	133	14
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	176	7
-'!=' - illegal operation use	NeuralPredictorEA.mq5	176	17
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	176	33
-'m_network' - object pointer expected	NeuralPredictorEA.mq5	176	33
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	304	8
 '>' - operand expected	NeuralPredictorEA.mq5	304	18
 undeclared identifier 'FeedForward'	NeuralPredictorEA.mq5	304	19
 'features' - some operator expected	NeuralPredictorEA.mq5	304	31
 expression not boolean	NeuralPredictorEA.mq5	304	17
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	313	4
 '>' - operand expected	NeuralPredictorEA.mq5	313	14
 undeclared identifier 'GetOutputs'	NeuralPredictorEA.mq5	313	15
 'outputs' - some operator expected	NeuralPredictorEA.mq5	313	26
-result of expression not used	NeuralPredictorEA.mq5	313	13
-undeclared identifier 'm_network'	NeuralPredictorEA.mq5	461	8
+'GetOutputs' - object pointer expected	NeuralPredictorEA.mq5	313	15
+expression has no effect	NeuralPredictorEA.mq5	313	13
 '>' - operand expected	NeuralPredictorEA.mq5	461	18
 undeclared identifier 'Load'	NeuralPredictorEA.mq5	461	19
 ',' - unexpected token	NeuralPredictorEA.mq5	461	32
@@ -70,4 +56,4 @@ expression has no effect	NeuralPredictorEA.mq5	461	59
 ')' - unexpected token	NeuralPredictorEA.mq5	461	67
 expression has no effect	NeuralPredictorEA.mq5	461	64
 ')' - unexpected token	NeuralPredictorEA.mq5	461	68
-32 errors, 8 warnings		32	8
+18 errors, 8 warnings		18	8
