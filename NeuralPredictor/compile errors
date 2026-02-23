@@ -24,153 +24,68 @@ neurongpt.mqh
 positionencoder.mqh			
 'opencl_program.cl' as 'const string OCLprogram'			0
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	buffer.mqh	326	54
-wrong parameters count, 4 passed, but 5 requires	buffer.mqh	326	21
-could be one of 2 function(s)	buffer.mqh	326	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	buffer.mqh	427	45
-wrong parameters count, 4 passed, but 5 requires	buffer.mqh	427	21
-could be one of 2 function(s)	buffer.mqh	427	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	buffer.mqh	480	51
-wrong parameters count, 4 passed, but 5 requires	buffer.mqh	480	21
-could be one of 2 function(s)	buffer.mqh	480	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
+wrong parameters count, 5 passed, but 4 requires	activation.mqh	647	21
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
+call resolves to 'bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])' instead of 'bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])' due to new rules of method hiding	activation.mqh	647	21
+   see declaration of function 'CMyOpenCL::Execute'	opencl.mqh	27	19
+   see declaration of function 'COpenCL::Execute'	OpenCL.mqh	83	22
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	542	49
-wrong parameters count, 4 passed, but 5 requires	neuronbase.mqh	542	21
-could be one of 2 function(s)	neuronbase.mqh	542	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	599	54
-wrong parameters count, 4 passed, but 5 requires	neuronbase.mqh	599	21
-could be one of 2 function(s)	neuronbase.mqh	599	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	654	53
-wrong parameters count, 4 passed, but 5 requires	neuronbase.mqh	654	21
-could be one of 2 function(s)	neuronbase.mqh	654	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	712	53
-wrong parameters count, 4 passed, but 5 requires	neuronbase.mqh	712	21
-could be one of 2 function(s)	neuronbase.mqh	712	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	777	54
-wrong parameters count, 4 passed, but 5 requires	neuronbase.mqh	777	21
-could be one of 2 function(s)	neuronbase.mqh	777	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbase.mqh	845	50
-wrong parameters count, 4 passed, but 5 requires	neuronbase.mqh	845	21
-could be one of 2 function(s)	neuronbase.mqh	845	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronconv.mqh	220	62
-wrong parameters count, 4 passed, but 5 requires	neuronconv.mqh	220	21
-could be one of 2 function(s)	neuronconv.mqh	220	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronconv.mqh	314	66
-wrong parameters count, 4 passed, but 5 requires	neuronconv.mqh	314	21
-could be one of 2 function(s)	neuronconv.mqh	314	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronlstm.mqh	400	55
-wrong parameters count, 4 passed, but 5 requires	neuronlstm.mqh	400	21
-could be one of 2 function(s)	neuronlstm.mqh	400	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronlstm.mqh	664	62
-wrong parameters count, 4 passed, but 5 requires	neuronlstm.mqh	664	24
-could be one of 2 function(s)	neuronlstm.mqh	664	24
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 wrong parameters count, 5 passed, but 4 requires	neuronattention.mqh	558	21
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronattention.mqh	558	54
-could be one of 2 function(s)	neuronattention.mqh	558	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 wrong parameters count, 5 passed, but 4 requires	neuronattention.mqh	596	21
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronattention.mqh	596	62
-could be one of 2 function(s)	neuronattention.mqh	596	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronattention.mqh	271	60
-wrong parameters count, 4 passed, but 5 requires	neuronattention.mqh	271	21
-could be one of 2 function(s)	neuronattention.mqh	271	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronattention.mqh	382	63
-wrong parameters count, 4 passed, but 5 requires	neuronattention.mqh	382	21
-could be one of 2 function(s)	neuronattention.mqh	382	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronattention.mqh	405	64
-wrong parameters count, 4 passed, but 5 requires	neuronattention.mqh	405	21
-could be one of 2 function(s)	neuronattention.mqh	405	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronmhattention.mqh	275	60
-wrong parameters count, 4 passed, but 5 requires	neuronmhattention.mqh	275	21
-could be one of 2 function(s)	neuronmhattention.mqh	275	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronmhattention.mqh	416	63
-wrong parameters count, 4 passed, but 5 requires	neuronmhattention.mqh	416	21
-could be one of 2 function(s)	neuronmhattention.mqh	416	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[2]' to 'const uint[] &' is not allowed	neuronmhattention.mqh	441	64
-wrong parameters count, 4 passed, but 5 requires	neuronmhattention.mqh	441	21
-could be one of 2 function(s)	neuronmhattention.mqh	441	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurondropout.mqh	165	51
-wrong parameters count, 4 passed, but 5 requires	neurondropout.mqh	165	24
-could be one of 2 function(s)	neurondropout.mqh	165	24
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurondropout.mqh	238	51
-wrong parameters count, 4 passed, but 5 requires	neurondropout.mqh	238	24
-could be one of 2 function(s)	neurondropout.mqh	238	24
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbatchnorm.mqh	278	70
-wrong parameters count, 4 passed, but 5 requires	neuronbatchnorm.mqh	278	24
-could be one of 2 function(s)	neuronbatchnorm.mqh	278	24
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neuronbatchnorm.mqh	325	65
-wrong parameters count, 4 passed, but 5 requires	neuronbatchnorm.mqh	325	21
-could be one of 2 function(s)	neuronbatchnorm.mqh	325	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 wrong parameters count, 5 passed, but 4 requires	neurongpt.mqh	850	21
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurongpt.mqh	850	54
-could be one of 2 function(s)	neurongpt.mqh	850	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 wrong parameters count, 5 passed, but 4 requires	neurongpt.mqh	888	21
-parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurongpt.mqh	888	62
-could be one of 2 function(s)	neurongpt.mqh	888	21
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurongpt.mqh	455	57
-wrong parameters count, 4 passed, but 5 requires	neurongpt.mqh	455	24
-could be one of 2 function(s)	neurongpt.mqh	455	24
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurongpt.mqh	632	60
-wrong parameters count, 4 passed, but 5 requires	neurongpt.mqh	632	24
-could be one of 2 function(s)	neurongpt.mqh	632	24
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
 parameter convertion type 'int[1]' to 'const uint[] &' is not allowed	neurongpt.mqh	653	61
-wrong parameters count, 4 passed, but 5 requires	neurongpt.mqh	653	24
-could be one of 2 function(s)	neurongpt.mqh	653	24
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[])	OpenCL.mqh	82	22
-   bool COpenCL::Execute(const int,const int,const uint&[],const uint&[],const uint&[])	OpenCL.mqh	83	22
-60 errors, 0 warnings		60	0
+   bool CMyOpenCL::Execute(const int,const int,const uint&[],const uint&[])	opencl.mqh	27	19
+31 errors, 1 warnings		31	1
