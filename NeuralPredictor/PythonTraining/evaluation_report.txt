@@ -1,0 +1,28 @@
+============================================================
+NEURAL NETWORK TRAINING REPORT
+============================================================
+
+Generated: 2026-02-23 12:25:22
+
+Training Configuration:
+  Data File: nn_training_data.csv
+  Epochs: 1000
+  Batch Size: 64
+  Learning Rate: 0.001
+  Dropout Rate: 0.3
+  L2 Regularization: 0.0001
+
+Training Time: 80.76 seconds
+
+Test Set Performance:
+  Accuracy:  95.07%
+  Precision: 93.88%
+  Recall:    97.39%
+
+Confusion Matrix:
+  True Negatives (SELL):  404
+  False Positives:        34
+  False Negatives:        14
+  True Positives (BUY):   522
+
+============================================================

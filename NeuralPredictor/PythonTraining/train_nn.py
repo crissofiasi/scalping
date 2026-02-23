@@ -55,7 +55,12 @@ def load_data(filepath):
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Data file not found: {filepath}")
     
-    df = pd.read_csv(filepath)
+    # Try UTF-16 encoding first (MT5 default), fallback to UTF-8
+    try:
+        df = pd.read_csv(filepath, encoding='utf-16')
+    except UnicodeDecodeError:
+        df = pd.read_csv(filepath, encoding='utf-8')
+    
     print(f"Loaded {len(df)} samples")
     
     # Separate features and labels
