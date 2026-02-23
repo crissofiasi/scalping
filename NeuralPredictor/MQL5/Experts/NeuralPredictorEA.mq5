@@ -590,7 +590,27 @@ bool LoadModel()
    }
    
    delete descriptions;
-   Print("✓ Network architecture created: 71->142->71->35->1");
+   
+   //--- Debug: Check what layers were created and which have weights
+   Print("✓ Network created successfully");
+   Print("Checking created layers and their weights...");
+   
+   for(int idx = 0; idx < 10; idx++)  // Check first 10 indices
+   {
+      CBufferType *test_weights = m_network.GetWeights(idx);
+      if(test_weights)
+      {
+         uint rows = test_weights.m_mMatrix.Rows();
+         uint cols = test_weights.m_mMatrix.Cols();
+         Print("  Layer ", idx, " has weights: ", rows, " x ", cols);
+      }
+      else
+      {
+         Print("  Layer ", idx, " has NO weights (input layer or out of range)");
+      }
+   }
+   
+   Print("Attempting to load weights for 4 dense layers...");
    
    //--- Load weights from Python binary file
    int file_handle = FileOpen(filename, FILE_READ | FILE_BIN | FILE_SHARE_READ | FILE_COMMON);
@@ -621,24 +641,48 @@ bool LoadModel()
       return false;
    }
    
-   //--- Load weights from Python binary layers (we skip batch norm layers in weight loading)
-   int dense_layer_indices[] = {1, 3, 5, 7};  // Indices of dense layers in CNet
+   //--- Load weights from Python binary file
+   // Based on the debug output above, adjust these indices if needed
+   // Expected: layers with weights are the dense layers (not batch norm or input)
+   int dense_layer_indices[] = {1, 3, 5, 7};  // Initial guess - will be verified
    
    for(uint i = 0; i < num_layers; i++)
    {
       uint input_size = FileReadInteger(file_handle);
       uint output_size = FileReadInteger(file_handle);
       
-      Print("Layer ", i, ": ", input_size, " -> ", output_size);
+      Print("Python Layer ", i, ": ", input_size, " -> ", output_size);
       
-      //--- Get weights buffer using GetWeights method
-      CBufferType *weights = m_network.GetWeights(dense_layer_indices[i]);
-      if(!weights)
+      // Try to find the corresponding layer in the network
+      int layer_idx = -1;
+      for(int search_idx = 0; search_idx < 10; search_idx++)
       {
-         Print("ERROR: No weights buffer for layer ", dense_layer_indices[i]);
+         CBufferType *test_weights = m_network.GetWeights(search_idx);
+         if(test_weights)
+         {
+            uint rows = test_weights.m_mMatrix.Rows();
+            uint cols = test_weights.m_mMatrix.Cols();
+            
+            // Match based on dimensions: rows should be input_size+1 (includes bias), cols should be output_size
+            if(rows == input_size + 1 && cols == output_size)
+            {
+               layer_idx = search_idx;
+               Print("  -> Matched to MQL5 layer index ", layer_idx);
+               break;
+            }
+         }
+      }
+      
+      if(layer_idx < 0)
+      {
+         Print("ERROR: Could not find matching layer for Python layer ", i);
+         Print("  Looking for dimensions: ", input_size + 1, " x ", output_size);
          FileClose(file_handle);
          return false;
       }
+      
+      //--- Get weights buffer using GetWeights method
+      CBufferType *weights = m_network.GetWeights(layer_idx);
       
       //--- Read and set weights
       for(uint row = 0; row < input_size; row++)
@@ -657,7 +701,7 @@ bool LoadModel()
          weights.m_mMatrix[input_size, col] = b;  // Bias is stored in last row
       }
       
-      Print("✓ Loaded weights for layer ", i);
+      Print("✓ Loaded weights for Python layer ", i, " -> MQL5 layer ", layer_idx);
    }
    
    FileClose(file_handle);
