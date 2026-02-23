@@ -172,27 +172,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-   //--- Release indicator handles
-   if(m_rsi_handle != INVALID_HANDLE) IndicatorRelease(m_rsi_handle);
-   if(m_rsi_fast_handle != INVALID_HANDLE) IndicatorRelease(m_rsi_fast_handle);
-   if(m_macd_handle != INVALID_HANDLE) IndicatorRelease(m_macd_handle);
-   if(m_atr_handle != INVALID_HANDLE) IndicatorRelease(m_atr_handle);
-   if(m_bb_handle != INVALID_HANDLE) IndicatorRelease(m_bb_handle);
-   
-   //--- Release multi-timeframe handles
-   if(m_rsi_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_rsi_handle_tf2);
-   if(m_rsi_fast_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_rsi_fast_handle_tf2);
-   if(m_macd_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_macd_handle_tf2);
-   if(m_atr_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_atr_handle_tf2);
-   if(m_bb_handle_tf2 != INVALID_HANDLE) IndicatorRelease(m_bb_handle_tf2);
-   
-   if(m_rsi_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_rsi_handle_tf3);
-   if(m_rsi_fast_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_rsi_fast_handle_tf3);
-   if(m_macd_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_macd_handle_tf3);
-   if(m_atr_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_atr_handle_tf3);
-   if(m_bb_handle_tf3 != INVALID_HANDLE) IndicatorRelease(m_bb_handle_tf3);
-   
-   //--- Delete objects
+   //--- Delete objects (indicator handles are released by CNNPredictorLib destructor)
    if(m_network != NULL) delete m_network;
    if(m_predictor != NULL) delete m_predictor;
    
@@ -321,7 +301,7 @@ int GetPrediction(double &confidence)
    }
    
    //--- Feed forward through network
-   if(!m_network.FeedForward(features))
+   if(!m_network->FeedForward(features))
    {
       Print("ERROR: Neural network feed forward failed");
       confidence = 0.0;
@@ -330,7 +310,7 @@ int GetPrediction(double &confidence)
    
    //--- Get output (probability of upward move)
    double outputs[];
-   m_network.GetOutputs(outputs);
+   m_network->GetOutputs(outputs);
    
    if(ArraySize(outputs) == 0)
    {
@@ -478,7 +458,7 @@ bool LoadModel()
    }
    
    //--- Load weights
-   if(!m_network.Load(filename, FILE_COMMON, false, 0.0, 0.0, 0.0))
+   if(!m_network->Load(filename, FILE_COMMON, false, 0.0, 0.0, 0.0))
    {
       Print("ERROR: Failed to load neural network weights from ", filename);
       return false;
