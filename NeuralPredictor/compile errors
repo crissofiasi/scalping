@@ -1,87 +1,42 @@
-NeuralPredictorEA.mq5			
-Trade.mqh			
-Object.mqh			
-StdLibErr.mqh			
-OrderInfo.mqh			
-HistoryOrderInfo.mqh			
-PositionInfo.mqh			
-DealInfo.mqh			
-neuronnet.mqh			
-arraylayers.mqh			
-ArrayObj.mqh			
-Array.mqh			
-neuronbase.mqh			
-Normal.mqh			
-Math.mqh			
-buffer.mqh			
-opencl.mqh			
-defines.mqh			
-OpenCL.mqh			
-layerdescription.mqh			
-activation.mqh			
-neuronconv.mqh			
-neuronproof.mqh			
-neuronlstm.mqh			
-neuronattention.mqh			
-neuronmhattention.mqh			
-neurondropout.mqh			
-neuronbatchnorm.mqh			
-neurongpt.mqh			
-positionencoder.mqh			
-NNPredictorLib.mqh			
-'opencl_program.cl' as 'const string OCLprogram'			0
-'>' - operand expected	NeuralPredictorEA.mq5	306	38
-undeclared identifier 'BufferInit'	NeuralPredictorEA.mq5	306	39
-',' - unexpected token	NeuralPredictorEA.mq5	306	51
-'1' - some operator expected	NeuralPredictorEA.mq5	306	50
-expression not boolean	NeuralPredictorEA.mq5	306	37
-'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	306	6
-',' - unexpected token	NeuralPredictorEA.mq5	306	72
-')' - unexpected token	NeuralPredictorEA.mq5	306	75
-expression has no effect	NeuralPredictorEA.mq5	306	74
-')' - unexpected token	NeuralPredictorEA.mq5	306	76
-'>' - operand expected	NeuralPredictorEA.mq5	316	20
-undeclared identifier 'm_mMatrix'	NeuralPredictorEA.mq5	316	21
-'[' - array required	NeuralPredictorEA.mq5	316	30
-'m_mMatrix' - object pointer expected	NeuralPredictorEA.mq5	316	21
-cannot convert parameter 'double' to 'const CBufferType&'	NeuralPredictorEA.mq5	316	47
-   implicit void CBufferType::operator=(const CBufferType&)	buffer.mqh	17	7
-see hidden function(s):	NeuralPredictorEA.mq5	316	37
-   implicit void CObject::operator=(const CObject&)	Object.mqh	11	7
-'[' - object pointer expected	NeuralPredictorEA.mq5	316	47
-l-value required	NeuralPredictorEA.mq5	316	37
-'>' - operand expected	NeuralPredictorEA.mq5	319	18
-undeclared identifier 'FeedForward'	NeuralPredictorEA.mq5	319	19
-'input_buffer' - some operator expected	NeuralPredictorEA.mq5	319	31
-expression not boolean	NeuralPredictorEA.mq5	319	17
-'>' - operand expected	NeuralPredictorEA.mq5	329	18
-undeclared identifier 'GetResults'	NeuralPredictorEA.mq5	329	19
-'output_buffer' - some operator expected	NeuralPredictorEA.mq5	329	30
-expression not boolean	NeuralPredictorEA.mq5	329	17
-'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	329	6
-'||' - operand expected	NeuralPredictorEA.mq5	329	45
-')' - unexpected token	NeuralPredictorEA.mq5	329	62
-expression has no effect	NeuralPredictorEA.mq5	329	48
-'>' - operand expected	NeuralPredictorEA.mq5	338	21
-undeclared identifier 'm_mMatrix'	NeuralPredictorEA.mq5	338	22
-'m_mMatrix' - object pointer expected	NeuralPredictorEA.mq5	338	22
-'0' - object pointer expected	NeuralPredictorEA.mq5	338	42
-'>' - operand expected	NeuralPredictorEA.mq5	338	61
-undeclared identifier 'm_mMatrix'	NeuralPredictorEA.mq5	338	62
-'m_mMatrix' - object pointer expected	NeuralPredictorEA.mq5	338	62
-'0' - object pointer expected	NeuralPredictorEA.mq5	338	82
-'>' - operand expected	NeuralPredictorEA.mq5	346	39
-undeclared identifier 'm_mMatrix'	NeuralPredictorEA.mq5	346	40
-'[' - array required	NeuralPredictorEA.mq5	346	49
-'m_mMatrix' - object pointer expected	NeuralPredictorEA.mq5	346	40
-'=' - illegal operation use	NeuralPredictorEA.mq5	346	23
-'>' - operand expected	NeuralPredictorEA.mq5	488	18
-undeclared identifier 'Load'	NeuralPredictorEA.mq5	488	19
-',' - unexpected token	NeuralPredictorEA.mq5	488	32
-'filename' - some operator expected	NeuralPredictorEA.mq5	488	24
-expression not boolean	NeuralPredictorEA.mq5	488	17
-'(' - unbalanced left parenthesis	NeuralPredictorEA.mq5	488	6
-')' - unexpected token	NeuralPredictorEA.mq5	488	38
-expression has no effect	NeuralPredictorEA.mq5	488	34
-')' - unexpected token	NeuralPredictorEA.mq5	488	39
-44 errors, 7 warnings		44	7
+MT5DataExporter.mq5			
+undeclared identifier 'SParameterFeatures'	MT5DataExporter.mq5	333	7
+undeclared identifier 'params'	MT5DataExporter.mq5	333	26
+'params' - some operator expected	MT5DataExporter.mq5	333	26
+undeclared identifier 'params'	MT5DataExporter.mq5	334	7
+undeclared identifier 'params'	MT5DataExporter.mq5	335	7
+undeclared identifier 'params'	MT5DataExporter.mq5	336	7
+undeclared identifier 'params'	MT5DataExporter.mq5	337	7
+undeclared identifier 'params'	MT5DataExporter.mq5	338	7
+undeclared identifier 'params'	MT5DataExporter.mq5	339	7
+undeclared identifier 'params'	MT5DataExporter.mq5	340	7
+undeclared identifier 'params'	MT5DataExporter.mq5	341	7
+'params' - cannot convert enum	MT5DataExporter.mq5	341	7
+undeclared identifier 'params'	MT5DataExporter.mq5	342	7
+'params' - cannot convert enum	MT5DataExporter.mq5	342	7
+undeclared identifier 'params'	MT5DataExporter.mq5	343	7
+'params' - cannot convert enum	MT5DataExporter.mq5	343	7
+undeclared identifier 'params'	MT5DataExporter.mq5	344	7
+undeclared identifier 'params'	MT5DataExporter.mq5	345	7
+undeclared identifier 'params'	MT5DataExporter.mq5	346	7
+undeclared identifier 'params'	MT5DataExporter.mq5	347	7
+undeclared identifier 'params'	MT5DataExporter.mq5	348	7
+undeclared identifier 'params'	MT5DataExporter.mq5	349	7
+undeclared identifier 'params'	MT5DataExporter.mq5	350	7
+undeclared identifier 'params'	MT5DataExporter.mq5	351	7
+undeclared identifier 'lookback'	MT5DataExporter.mq5	351	31
+undeclared identifier 'bars'	MT5DataExporter.mq5	351	40
+'bars' - some operator expected	MT5DataExporter.mq5	351	40
+undeclared identifier 'match'	MT5DataExporter.mq5	351	52
+'match' - some operator expected	MT5DataExporter.mq5	351	52
+undeclared identifier 'setting'	MT5DataExporter.mq5	351	61
+undeclared identifier 'currently'	MT5DataExporter.mq5	351	71
+'61' - some operator expected	MT5DataExporter.mq5	351	81
+result of expression not used	MT5DataExporter.mq5	351	69
+undeclared identifier 'trained'	MT5DataExporter.mq5	351	88
+undeclared identifier 'model'	MT5DataExporter.mq5	351	96
+'model' - some operator expected	MT5DataExporter.mq5	351	96
+undeclared identifier 'i'	MT5DataExporter.mq5	353	43
+undeclared identifier 'SetParameters'	MT5DataExporter.mq5	354	13
+undeclared identifier 'params'	MT5DataExporter.mq5	354	27
+'params' - some operator expected	MT5DataExporter.mq5	354	27
+39 errors, 1 warnings		39	1
