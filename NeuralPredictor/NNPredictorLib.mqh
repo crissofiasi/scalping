@@ -159,10 +159,6 @@ public:
    bool ExtractTimeframeFeatures(double &features[], int &feature_idx, ENUM_TIMEFRAMES tf, int bar_shift, int lookback_bars,
                                    int rsi_h, int rsi_fast_h, int macd_h, int atr_h, int bb_h)
    {
-   //--- Extract features from a single timeframe
-   bool ExtractTimeframeFeatures(double &features[], int &feature_idx, ENUM_TIMEFRAMES tf, int bar_shift, int lookback_bars,
-                                   int rsi_h, int rsi_fast_h, int macd_h, int atr_h, int bb_h)
-   {
       //--- Calculate total number of features
       // Features: RSI, RSI_Fast, MACD_Main, MACD_Signal, ATR, BB_Upper, BB_Lower, BB_Middle
       // Plus: Price patterns (last N bars normalized)

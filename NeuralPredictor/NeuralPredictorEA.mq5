@@ -10,6 +10,9 @@
 #include "../mql5/Include/NeuroNetworksBook/realization/neuronnet.mqh"
 #include "NNPredictorLib.mqh"
 
+// Type alias for compatibility
+#define CNeuronNet CNet
+
 //+------------------------------------------------------------------+
 //| INPUT PARAMETERS                                                  |
 //+------------------------------------------------------------------+
@@ -91,6 +94,8 @@ input bool               Input_Show_Predictions = true;                // Show P
 CTrade               m_trade;
 CNeuronNet          *m_network = NULL;
 CNNPredictorLib     *m_predictor = NULL;
+CBufferType         *m_input_buffer = NULL;
+CBufferType         *m_output_buffer = NULL;
 
 datetime             m_last_bar_time = 0;
 datetime             m_model_last_modified = 0;
@@ -188,6 +193,16 @@ int OnInit()
    //--- Create neural network
    m_network = new CNeuronNet();
    
+   //--- Create buffer objects for NN input/output
+   m_input_buffer = new CBufferType();
+   m_output_buffer = new CBufferType();
+   
+   if(m_input_buffer == NULL || m_output_buffer == NULL)
+   {
+      Print("ERROR: Failed to create buffer objects");
+      return INIT_FAILED;
+   }
+   
    //--- Load trained model
    if(!LoadModel())
    {
@@ -251,6 +266,8 @@ void OnDeinit(const int reason)
    //--- Delete objects
    if(m_network != NULL) delete m_network;
    if(m_predictor != NULL) delete m_predictor;
+   if(m_input_buffer != NULL) delete m_input_buffer;
+   if(m_output_buffer != NULL) delete m_output_buffer;
    
    Print("NeuralPredictorEA deinitialized");
 }
@@ -376,8 +393,30 @@ int GetPrediction(double &confidence)
       return 0;
    }
    
+   int num_features = ArraySize(features);
+   if(num_features == 0)
+   {
+      Print("ERROR: No features prepared");
+      confidence = 0.0;
+      return 0;
+   }
+   
+   //--- Initialize input buffer with features
+   if(!m_input_buffer.BufferInit(1, num_features, 0.0))
+   {
+      Print("ERROR: Failed to initialize input buffer");
+      confidence = 0.0;
+      return 0;
+   }
+   
+   //--- Copy features to buffer matrix
+   for(int i = 0; i < num_features; i++)
+   {
+      m_input_buffer.m_mMatrix[0, i] = (TYPE)features[i];
+   }
+   
    //--- Feed forward through network
-   if(!m_network.FeedForward(features))
+   if(!m_network.FeedForward(m_input_buffer))
    {
       Print("ERROR: Neural network feed forward failed");
       confidence = 0.0;
@@ -385,17 +424,21 @@ int GetPrediction(double &confidence)
    }
    
    //--- Get output (probability of upward move)
-   double outputs[];
-   m_network.GetOutputs(outputs);
+   if(!m_network.GetResults(m_output_buffer))
+   {
+      Print("ERROR: Failed to get network results");
+      confidence = 0.0;
+      return 0;
+   }
    
-   if(ArraySize(outputs) == 0)
+   if(m_output_buffer.Total() == 0)
    {
       Print("ERROR: No network outputs");
       confidence = 0.0;
       return 0;
    }
    
-   double probability = outputs[0]; // Output should be 0-1 (sigmoid)
+   double probability = (double)m_output_buffer.At(0); // Output should be 0-1 (sigmoid)
    
    //--- Interpret output
    // probability > 0.5 = BUY (expecting upward move)
@@ -533,8 +576,8 @@ bool LoadModel()
       return false;
    }
    
-   //--- Load weights
-   if(!m_network.Load(filename, FILE_COMMON, false, 0.0, 0.0, 0.0))
+   //--- Load weights (correct Load method signature)
+   if(!m_network.Load(filename, true))
    {
       Print("ERROR: Failed to load neural network weights from ", filename);
       return false;
