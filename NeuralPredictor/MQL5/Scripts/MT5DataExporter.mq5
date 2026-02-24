@@ -359,9 +359,10 @@ public:
 //| Input Parameters                                                  |
 //+------------------------------------------------------------------+
 input int      Input_Export_Bars = 10000;           // Bars to export
-input double   Input_Target_Move_Pips = 10.0;       // Target move for labeling (pips)
+input double   Input_Target_Move_Pips = 10.0;       // Target move for labeling (pips) - ALSO EXPORTED AS FEATURE
 input int      Input_Lookforward_Bars = 50;         // Bars to look ahead for label (increased for more samples)
 input bool     Input_Use_Multi_Timeframe = true;    // Export multi-timeframe data
+input bool     Input_Export_All_Bars = true;        // Export all bars (vs only clear directional moves)
 input ENUM_TIMEFRAMES Input_Timeframe_2 = PERIOD_M15;  // Second timeframe (if MTA)
 input ENUM_TIMEFRAMES Input_Timeframe_3 = PERIOD_M30;  // Third timeframe (if MTA)
 input string   Input_Output_Filename = "nn_training_data.csv";  // Output filename
@@ -509,10 +510,18 @@ void OnStart()
       
       //--- Calculate label
       double label = LabelBar(i);
-      if(label < 0)  // No clear direction
+      
+      // If Export_All_Bars is false, skip bars with no clear direction
+      if(!Input_Export_All_Bars && label < 0)
       {
          skipped_count++;
          continue;
+      }
+      
+      // If label is still negative (no direction), label based on which way it moved more
+      if(label < 0)
+      {
+         label = LabelBarRelative(i);  // Which direction moved MORE
       }
       
       //--- Write row to CSV
@@ -629,12 +638,44 @@ double LabelBar(int bar_index)
    bool is_buy_move = (max_up >= target_points);
    bool is_sell_move = (max_down >= target_points);
    
-   //--- Clear directional move
+   //--- Clear directional move (hit target in one direction only)
    if(is_buy_move && !is_sell_move)
-      return 1.0;  // BUY
+      return 1.0;  // BUY - hit up target without hitting down target
    else if(is_sell_move && !is_buy_move)
-      return 0.0;  // SELL
+      return 0.0;  // SELL - hit down target without hitting up target
    else
-      return -1.0; // No clear direction (excluded)
+      return -1.0; // No clear direction (both hit target, or neither did)
 }
+
 //+------------------------------------------------------------------+
+//| Label bar based on relative movement (which direction moved MORE)|
+//+------------------------------------------------------------------+
+double LabelBarRelative(int bar_index)
+{
+   double open_price = iOpen(_Symbol, PERIOD_CURRENT, bar_index);
+   double max_up = 0;
+   double max_down = 0;
+   
+   //--- Look forward to find maximum movement
+   for(int i = 1; i <= Input_Lookforward_Bars; i++)
+   {
+      if(bar_index - i < 0) break;
+      
+      double high = iHigh(_Symbol, PERIOD_CURRENT, bar_index - i);
+      double low = iLow(_Symbol, PERIOD_CURRENT, bar_index - i);
+      
+      double up_move = high - open_price;
+      double down_move = open_price - low;
+      
+      if(up_move > max_up) max_up = up_move;
+      if(down_move > max_down) max_down = down_move;
+   }
+   
+   //--- Label based on which direction moved MORE
+   if(max_up > max_down)
+      return 1.0;  // BUY - upward movement was larger
+   else if(max_down > max_up)
+      return 0.0;  // SELL - downward movement was larger
+   else
+      return 0.5;  // Neutral - equal movement (rare, but break tie as neutral)
+}
