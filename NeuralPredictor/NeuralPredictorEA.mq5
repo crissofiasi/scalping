@@ -622,15 +622,107 @@ bool LoadModel()
       return false;
    }
    
+   //--- Calculate expected input features
+   int features_per_tf = 8 + Input_Lookback_Bars + 2; // indicators + lookback + time
+   int param_features = Input_Use_Parameter_Features ? 18 : 0;
+   int input_features = Input_Use_Multi_Timeframe ? (features_per_tf * 3 + param_features) : (features_per_tf + param_features);
+   
+   //--- Create network architecture BEFORE loading weights
+   //--- Architecture: input_features -> [input*2, input, input/2] -> 1
+   CLayerDescription *desc = NULL;
+   
+   // Clear any existing layers
+   if(!m_network.Clear())
+   {
+      Print("ERROR: Failed to clear network");
+      return false;
+   }
+   
+   // Layer 1: Input layer
+   desc = new CLayerDescription();
+   desc.type = defNeuronBaseOCL;
+   desc.count = input_features;
+   desc.window = 0;
+   desc.optimization = ADAM;
+   desc.activation = AF_SWISH;
+   if(!m_network.Add(desc))
+   {
+      Print("ERROR: Failed to add input layer");
+      delete desc;
+      return false;
+   }
+   delete desc;
+   
+   // Layer 2: Hidden layer 1 (input*2)
+   desc = new CLayerDescription();
+   desc.type = defNeuronBaseOCL;
+   desc.count = input_features * 2;
+   desc.optimization = ADAM;
+   desc.activation = AF_SWISH;
+   if(!m_network.Add(desc))
+   {
+      Print("ERROR: Failed to add hidden layer 1");
+      delete desc;
+      return false;
+   }
+   delete desc;
+   
+   // Layer 3: Hidden layer 2 (input)
+   desc = new CLayerDescription();
+   desc.type = defNeuronBaseOCL;
+   desc.count = input_features;
+   desc.optimization = ADAM;
+   desc.activation = AF_SWISH;
+   if(!m_network.Add(desc))
+   {
+      Print("ERROR: Failed to add hidden layer 2");
+      delete desc;
+      return false;
+   }
+   delete desc;
+   
+   // Layer 4: Hidden layer 3 (input/2)
+   desc = new CLayerDescription();
+   desc.type = defNeuronBaseOCL;
+   desc.count = (int)MathMax(input_features / 2, 10);
+   desc.optimization = ADAM;
+   desc.activation = AF_SWISH;
+   if(!m_network.Add(desc))
+   {
+      Print("ERROR: Failed to add hidden layer 3");
+      delete desc;
+      return false;
+   }
+   delete desc;
+   
+   // Layer 5: Output layer
+   desc = new CLayerDescription();
+   desc.type = defNeuronBaseOCL;
+   desc.count = 1;
+   desc.optimization = ADAM;
+   desc.activation = AF_SIGMOID;
+   if(!m_network.Add(desc))
+   {
+      Print("ERROR: Failed to add output layer");
+      delete desc;
+      return false;
+   }
+   delete desc;
+   
+   Print("Created network architecture: ", input_features, " -> [", input_features*2, ", ", input_features, ", ", input_features/2, "] -> 1");
+   
    //--- Load weights (correct Load method signature)
    if(!m_network.Load(filename, true))
    {
       Print("ERROR: Failed to load neural network weights from ", filename);
+      Print("Make sure the model was trained with ", input_features, " input features");
       return false;
    }
    
    //--- Store file modification time
    m_model_last_modified = (datetime)FileGetInteger(filename, FILE_MODIFY_DATE, FILE_COMMON);
+   
+   Print("Model loaded successfully with ", input_features, " input features");
    
    return true;
 }
