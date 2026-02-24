@@ -41,6 +41,7 @@ input ENUM_TIMEFRAMES    Input_Timeframe_3 = PERIOD_M30;               // Timefr
 
 //--- Feature Settings (Indicators for NN Input)
 input group "═══════════ Feature Settings ═══════════"
+input bool               Input_Use_Parameter_Features = true;          // Include EA Parameters in Model
 input int                Input_RSI_Period = 14;                        // RSI Period
 input int                Input_RSI_Fast_Period = 5;                    // RSI Fast Period
 input int                Input_MACD_Fast = 12;                         // MACD Fast EMA
@@ -190,6 +191,39 @@ int OnInit()
       m_predictor.SetIndicatorHandlesTF3(m_rsi_handle_tf3, m_rsi_fast_handle_tf3, m_macd_handle_tf3, m_atr_handle_tf3, m_bb_handle_tf3);
    }
    
+   //--- Set parameter features if enabled
+   if(Input_Use_Parameter_Features)
+   {
+      SParameterFeatures params;
+      params.stop_loss_pips = Input_Stop_Loss_Pips;
+      params.take_profit_pips = Input_Take_Profit_Pips;
+      params.target_move_pips = Input_Target_Move_Pips;
+      params.risk_percent = Input_Risk_Percent;
+      params.max_positions = Input_Max_Open_Positions;
+      params.use_trading_hours = Input_Use_Trading_Hours;
+      params.use_multi_tf = Input_Use_Multi_Timeframe;
+      params.timeframe1 = Input_Prediction_Timeframe;
+      params.timeframe2 = Input_Timeframe_2;
+      params.timeframe3 = Input_Timeframe_3;
+      params.rsi_period = Input_RSI_Period;
+      params.rsi_fast_period = Input_RSI_Fast_Period;
+      params.macd_fast = Input_MACD_Fast;
+      params.macd_slow = Input_MACD_Slow;
+      params.macd_signal = Input_MACD_Signal;
+      params.atr_period = Input_ATR_Period;
+      params.bb_period = Input_BB_Period;
+      params.bb_deviation = Input_BB_Deviation;
+      
+      m_predictor.EnableParameterFeatures(true);
+      m_predictor.SetParameters(params);
+      
+      Print("Parameter features ENABLED - Model will receive EA settings as inputs");
+   }
+   else
+   {
+      Print("Parameter features DISABLED - Model receives only market data");
+   }
+   
    //--- Create neural network
    m_network = new CNeuronNet();
    
@@ -227,16 +261,19 @@ int OnInit()
    
    // Calculate expected features
    int expected_features = 8 + Input_Lookback_Bars + 2; // indicators + lookback + time
+   int param_features = Input_Use_Parameter_Features ? 18 : 0; // parameter features
    
    if(Input_Use_Multi_Timeframe)
    {
       Print("Multi-timeframe mode: ", EnumToString(Input_Prediction_Timeframe), " + ",
             EnumToString(Input_Timeframe_2), " + ", EnumToString(Input_Timeframe_3));
-      Print("Expected features: ", expected_features * 3, " (", expected_features, " per timeframe)");
+      Print("Expected features: ", (expected_features * 3 + param_features), 
+            " (", expected_features, " x 3 timeframes + ", param_features, " params)");
    }
    else
    {
-      Print("Single timeframe mode - Expected features: ", expected_features);
+      Print("Single timeframe mode - Expected features: ", (expected_features + param_features),
+            " (", expected_features, " market + ", param_features, " params)");
    }
    
    return INIT_SUCCEEDED;

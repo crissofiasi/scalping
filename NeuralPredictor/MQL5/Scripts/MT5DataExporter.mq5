@@ -247,6 +247,26 @@ input ENUM_TIMEFRAMES Input_Timeframe_2 = PERIOD_M15;  // Second timeframe (if M
 input ENUM_TIMEFRAMES Input_Timeframe_3 = PERIOD_M30;  // Third timeframe (if MTA)
 input string   Input_Output_Filename = "nn_training_data.csv";  // Output filename
 
+//--- Parameter features to include in training
+input group "═══════════ Parameter Features ═══════════"
+input bool     Input_Include_Parameters = true;     // Include EA parameters in export
+input double   Input_Stop_Loss_Pips = 20.0;         // Stop Loss (pips)
+input double   Input_Take_Profit_Pips = 30.0;       // Take Profit (pips)
+input double   Input_Risk_Percent = 1.0;            // Risk Percent
+input int      Input_Max_Positions = 3;             // Max Positions
+input bool     Input_Use_Trading_Hours = false;     // Trading Hours Enabled
+
+//--- Indicator parameters for export
+input group "═══════════ Indicator Parameters ═══════════"
+input int      Input_RSI_Period = 14;               // RSI Period
+input int      Input_RSI_Fast_Period = 5;           // RSI Fast Period
+input int      Input_MACD_Fast = 12;                // MACD Fast
+input int      Input_MACD_Slow = 26;                // MACD Slow
+input int      Input_MACD_Signal = 9;               // MACD Signal
+input int      Input_ATR_Period = 14;               // ATR Period
+input int      Input_BB_Period = 20;                // BB Period
+input double   Input_BB_Deviation = 2.0;            // BB Deviation
+
 //--- Global variables
 CNNPredictorLib g_lib;
 int g_rsi_handle, g_rsi_fast_handle, g_macd_handle, g_atr_handle, g_bb_handle;
@@ -261,12 +281,12 @@ void OnStart()
    Print("=== MT5 Data Exporter for Python Training ===");
    Print("Exporting ", Input_Export_Bars, " bars...");
    
-   //--- Initialize indicators for primary timeframe
-   g_rsi_handle = iRSI(_Symbol, PERIOD_CURRENT, 14, PRICE_CLOSE);
-   g_rsi_fast_handle = iRSI(_Symbol, PERIOD_CURRENT, 5, PRICE_CLOSE);
-   g_macd_handle = iMACD(_Symbol, PERIOD_CURRENT, 12, 26, 9, PRICE_CLOSE);
-   g_atr_handle = iATR(_Symbol, PERIOD_CURRENT, 14);
-   g_bb_handle = iBands(_Symbol, PERIOD_CURRENT, 20, 0, 2.0, PRICE_CLOSE);
+   //--- Initialize indicators for primary timeframe (using input parameters)
+   g_rsi_handle = iRSI(_Symbol, PERIOD_CURRENT, Input_RSI_Period, PRICE_CLOSE);
+   g_rsi_fast_handle = iRSI(_Symbol, PERIOD_CURRENT, Input_RSI_Fast_Period, PRICE_CLOSE);
+   g_macd_handle = iMACD(_Symbol, PERIOD_CURRENT, Input_MACD_Fast, Input_MACD_Slow, Input_MACD_Signal, PRICE_CLOSE);
+   g_atr_handle = iATR(_Symbol, PERIOD_CURRENT, Input_ATR_Period);
+   g_bb_handle = iBands(_Symbol, PERIOD_CURRENT, Input_BB_Period, 0, Input_BB_Deviation, PRICE_CLOSE);
    
    if(g_rsi_handle == INVALID_HANDLE || g_macd_handle == INVALID_HANDLE || 
       g_atr_handle == INVALID_HANDLE || g_bb_handle == INVALID_HANDLE)
@@ -286,25 +306,58 @@ void OnStart()
             
       g_lib.EnableMultiTimeframe(true, Input_Timeframe_2, Input_Timeframe_3);
       
-      // Initialize TF2 indicators
-      g_rsi_handle_tf2 = iRSI(_Symbol, Input_Timeframe_2, 14, PRICE_CLOSE);
-      g_rsi_fast_handle_tf2 = iRSI(_Symbol, Input_Timeframe_2, 5, PRICE_CLOSE);
-      g_macd_handle_tf2 = iMACD(_Symbol, Input_Timeframe_2, 12, 26, 9, PRICE_CLOSE);
-      g_atr_handle_tf2 = iATR(_Symbol, Input_Timeframe_2, 14);
-      g_bb_handle_tf2 = iBands(_Symbol, Input_Timeframe_2, 20, 0, 2.0, PRICE_CLOSE);
+      // Initialize TF2 indicators (using input parameters)
+      g_rsi_handle_tf2 = iRSI(_Symbol, Input_Timeframe_2, Input_RSI_Period, PRICE_CLOSE);
+      g_rsi_fast_handle_tf2 = iRSI(_Symbol, Input_Timeframe_2, Input_RSI_Fast_Period, PRICE_CLOSE);
+      g_macd_handle_tf2 = iMACD(_Symbol, Input_Timeframe_2, Input_MACD_Fast, Input_MACD_Slow, Input_MACD_Signal, PRICE_CLOSE);
+      g_atr_handle_tf2 = iATR(_Symbol, Input_Timeframe_2, Input_ATR_Period);
+      g_bb_handle_tf2 = iBands(_Symbol, Input_Timeframe_2, Input_BB_Period, 0, Input_BB_Deviation, PRICE_CLOSE);
       
       g_lib.SetIndicatorHandlesTF2(g_rsi_handle_tf2, g_rsi_fast_handle_tf2, 
                                     g_macd_handle_tf2, g_atr_handle_tf2, g_bb_handle_tf2);
       
-      // Initialize TF3 indicators
-      g_rsi_handle_tf3 = iRSI(_Symbol, Input_Timeframe_3, 14, PRICE_CLOSE);
-      g_rsi_fast_handle_tf3 = iRSI(_Symbol, Input_Timeframe_3, 5, PRICE_CLOSE);
-      g_macd_handle_tf3 = iMACD(_Symbol, Input_Timeframe_3, 12, 26, 9, PRICE_CLOSE);
-      g_atr_handle_tf3 = iATR(_Symbol, Input_Timeframe_3, 14);
-      g_bb_handle_tf3 = iBands(_Symbol, Input_Timeframe_3, 20, 0, 2.0, PRICE_CLOSE);
+      // Initialize TF3 indicators (using input parameters)
+      g_rsi_handle_tf3 = iRSI(_Symbol, Input_Timeframe_3, Input_RSI_Period, PRICE_CLOSE);
+      g_rsi_fast_handle_tf3 = iRSI(_Symbol, Input_Timeframe_3, Input_RSI_Fast_Period, PRICE_CLOSE);
+      g_macd_handle_tf3 = iMACD(_Symbol, Input_Timeframe_3, Input_MACD_Fast, Input_MACD_Slow, Input_MACD_Signal, PRICE_CLOSE);
+      g_atr_handle_tf3 = iATR(_Symbol, Input_Timeframe_3, Input_ATR_Period);
+      g_bb_handle_tf3 = iBands(_Symbol, Input_Timeframe_3, Input_BB_Period, 0, Input_BB_Deviation, PRICE_CLOSE);
       
       g_lib.SetIndicatorHandlesTF3(g_rsi_handle_tf3, g_rsi_fast_handle_tf3, 
                                     g_macd_handle_tf3, g_atr_handle_tf3, g_bb_handle_tf3);
+   }
+   
+   //--- Set parameter features if enabled
+   if(Input_Include_Parameters)
+   {
+      SParameterFeatures params;
+      params.stop_loss_pips = Input_Stop_Loss_Pips;
+      params.take_profit_pips = Input_Take_Profit_Pips;
+      params.target_move_pips = Input_Target_Move_Pips;
+      params.risk_percent = Input_Risk_Percent;
+      params.max_positions = Input_Max_Positions;
+      params.use_trading_hours = Input_Use_Trading_Hours;
+      params.use_multi_tf = Input_Use_Multi_Timeframe;
+      params.timeframe1 = PERIOD_CURRENT;
+      params.timeframe2 = Input_Timeframe_2;
+      params.timeframe3 = Input_Timeframe_3;
+      params.rsi_period = Input_RSI_Period;
+      params.rsi_fast_period = Input_RSI_Fast_Period;
+      params.macd_fast = Input_MACD_Fast;
+      params.macd_slow = Input_MACD_Slow;
+      params.macd_signal = Input_MACD_Signal;
+      params.atr_period = Input_ATR_Period;
+      params.bb_period = Input_BB_Period;
+      params.bb_deviation =  (lookback bars should match EA setting - currently 61 for trained model)
+      double features[];
+      if(!g_lib.PrepareFeatures(features, i, 61))  // Use 61 lookback bars to match trained model
+      g_lib.SetParameters(params);
+      
+      Print("Parameter features ENABLED - Will include EA settings in export");
+   }
+   else
+   {
+      Print("Parameter features DISABLED");
    }
    
    //--- Wait for indicator data

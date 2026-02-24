@@ -6,6 +6,42 @@
 #property version   "1.00"
 
 //+------------------------------------------------------------------+
+//| Parameter Feature Structure                                       |
+//+------------------------------------------------------------------+
+struct SParameterFeatures
+{
+   //--- Trading parameters
+   double   stop_loss_pips;
+   double   take_profit_pips;
+   double   target_move_pips;
+   double   risk_percent;
+   int      max_positions;
+   bool     use_trading_hours;
+   
+   //--- Multi-timeframe settings
+   bool              use_multi_tf;
+   ENUM_TIMEFRAMES   timeframe1;
+   ENUM_TIMEFRAMES   timeframe2;
+   ENUM_TIMEFRAMES   timeframe3;
+   
+   //--- Indicator parameters
+   int      rsi_period;
+   int      rsi_fast_period;
+   int      macd_fast;
+   int      macd_slow;
+   int      macd_signal;
+   int      atr_period;
+   int      bb_period;
+   double   bb_deviation;
+   
+   SParameterFeatures() : stop_loss_pips(20), take_profit_pips(30), target_move_pips(10),
+                          risk_percent(1.0), max_positions(3), use_trading_hours(false),
+                          use_multi_tf(false), timeframe1(PERIOD_M5), timeframe2(PERIOD_M15), timeframe3(PERIOD_M30),
+                          rsi_period(14), rsi_fast_period(5), macd_fast(12), macd_slow(26),
+                          macd_signal(9), atr_period(14), bb_period(20), bb_deviation(2.0) {}
+};
+
+//+------------------------------------------------------------------+
 //| Neural Predictor Library Class                                    |
 //+------------------------------------------------------------------+
 class CNNPredictorLib
@@ -38,6 +74,10 @@ private:
    bool              m_use_multi_tf;
    ENUM_TIMEFRAMES   m_timeframe2;
    ENUM_TIMEFRAMES   m_timeframe3;
+   
+   //--- Parameter features
+   SParameterFeatures m_params;
+   bool              m_use_param_features;
 
 public:
    //--- Constructor
@@ -66,11 +106,25 @@ public:
       m_use_multi_tf = false;
       m_timeframe2 = PERIOD_CURRENT;
       m_timeframe3 = PERIOD_CURRENT;
+      m_use_param_features = false;
    }
    
    //--- Setters
    void SetSymbol(string symbol) { m_symbol = symbol; }
    void SetTimeframe(ENUM_TIMEFRAMES tf) { m_timeframe = tf; }
+   
+   //--- Enable/disable parameter features
+   void EnableParameterFeatures(bool enable) { m_use_param_features = enable; }
+   
+   //--- Set parameter features
+   void SetParameters(const SParameterFeatures &params)
+   {
+      m_params = params;
+      m_params.timeframe1 = m_timeframe;
+      m_params.timeframe2 = m_timeframe2;
+      m_params.timeframe3 = m_timeframe3;
+      m_params.use_multi_tf = m_use_multi_tf;
+   }
    void SetIndicatorHandles(int rsi, int rsi_fast, int macd, int atr, int bb)
    {
       m_rsi_handle = rsi;
@@ -114,6 +168,7 @@ public:
       int num_price_features = lookback_bars;
       int num_time_features = 2;
       int features_per_tf = num_indicators + num_price_features + num_time_features;
+      int num_param_features = m_use_param_features ? 18 : 0; // Parameter features
       
       int num_timeframes = 1;
       if(m_use_multi_tf)
@@ -122,7 +177,7 @@ public:
          if(m_timeframe3 != PERIOD_CURRENT && m_rsi_handle_tf3 != INVALID_HANDLE) num_timeframes++;
       }
       
-      int total_features = features_per_tf * num_timeframes;
+      int total_features = features_per_tf * num_timeframes + num_param_features;
       
       ArrayResize(features, total_features);
       ArrayInitialize(features, 0.0);
@@ -152,7 +207,71 @@ public:
             return false;
       }
       
+      //--- Add parameter features if enabled
+      if(m_use_param_features)
+      {
+         AddParameterFeatures(features, feature_idx);
+      }
+      
       return true;
+   }
+   
+   //--- Add parameter features to feature array
+   void AddParameterFeatures(double &features[], int &feature_idx)
+   {
+      //--- Trading parameters (normalized)
+      features[feature_idx++] = NormalizeValue(m_params.stop_loss_pips, 0.0, 100.0);
+      features[feature_idx++] = NormalizeValue(m_params.take_profit_pips, 0.0, 100.0);
+      features[feature_idx++] = NormalizeValue(m_params.target_move_pips, 0.0, 50.0);
+      features[feature_idx++] = NormalizeValue(m_params.risk_percent, 0.0, 5.0);
+      features[feature_idx++] = NormalizeValue(m_params.max_positions, 0.0, 10.0);
+      features[feature_idx++] = m_params.use_trading_hours ? 1.0 : 0.0;
+      
+      //--- Multi-timeframe settings
+      features[feature_idx++] = m_params.use_multi_tf ? 1.0 : 0.0;
+      features[feature_idx++] = NormalizeValue(TimeframeToMinutes(m_params.timeframe1), 0.0, 1440.0);
+      features[feature_idx++] = NormalizeValue(TimeframeToMinutes(m_params.timeframe2), 0.0, 1440.0);
+      features[feature_idx++] = NormalizeValue(TimeframeToMinutes(m_params.timeframe3), 0.0, 1440.0);
+      
+      //--- Indicator parameters (normalized)
+      features[feature_idx++] = NormalizeValue(m_params.rsi_period, 5.0, 50.0);
+      features[feature_idx++] = NormalizeValue(m_params.rsi_fast_period, 3.0, 30.0);
+      features[feature_idx++] = NormalizeValue(m_params.macd_fast, 5.0, 30.0);
+      features[feature_idx++] = NormalizeValue(m_params.macd_slow, 10.0, 50.0);
+      features[feature_idx++] = NormalizeValue(m_params.macd_signal, 5.0, 20.0);
+      features[feature_idx++] = NormalizeValue(m_params.atr_period, 5.0, 50.0);
+      features[feature_idx++] = NormalizeValue(m_params.bb_period, 10.0, 50.0);
+      features[feature_idx++] = NormalizeValue(m_params.bb_deviation, 1.0, 5.0);
+   }
+   
+   //--- Convert timeframe enum to minutes
+   double TimeframeToMinutes(ENUM_TIMEFRAMES tf)
+   {
+      switch(tf)
+      {
+         case PERIOD_M1:  return 1;
+         case PERIOD_M2:  return 2;
+         case PERIOD_M3:  return 3;
+         case PERIOD_M4:  return 4;
+         case PERIOD_M5:  return 5;
+         case PERIOD_M6:  return 6;
+         case PERIOD_M10: return 10;
+         case PERIOD_M12: return 12;
+         case PERIOD_M15: return 15;
+         case PERIOD_M20: return 20;
+         case PERIOD_M30: return 30;
+         case PERIOD_H1:  return 60;
+         case PERIOD_H2:  return 120;
+         case PERIOD_H3:  return 180;
+         case PERIOD_H4:  return 240;
+         case PERIOD_H6:  return 360;
+         case PERIOD_H8:  return 480;
+         case PERIOD_H12: return 720;
+         case PERIOD_D1:  return 1440;
+         case PERIOD_W1:  return 10080;
+         case PERIOD_MN1: return 43200;
+         default: return 5;
+      }
    }
    
    //--- Extract features from a single timeframe

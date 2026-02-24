@@ -8,11 +8,28 @@ A complete Neural Network-based Expert Advisor for MetaTrader 5 that predicts fu
 
 Current trained model expects: **71 features** (8 indicators + **61 lookback bars** + 2 time features)
 
+### ✨ NEW: Parameter Features (18 additional features)
+
+**Now you can train the model with EA parameters included!** This allows a single model to adapt to different settings:
+
+**When enabled (`Input_Use_Parameter_Features = true`):**
+- Model receives **89 total features** (71 market + 18 parameters)
+- Includes: SL/TP, risk %, timeframes, indicator periods, etc.
+- Model learns optimal predictions for different parameter combinations
+- Single model works across varied EA configurations
+
+**Parameter Features Added:**
+- Trading: Stop Loss, Take Profit, Target Move, Risk %, Max Positions, Trading Hours
+- Timeframes: Multi-TF enabled, TF1/TF2/TF3 values (encoded as minutes)
+- Indicators: RSI/MACD/ATR/BB periods and deviations
+
 ✅ **EA Configuration (NeuralPredictorEA.mq5):**
 - `Input_Lookback_Bars = 61` ← **MUST MATCH training data**
+- `Input_Use_Parameter_Features = true` ← **Enable parameter features**
 
-✅ **Data Export Configuration (MT5DataExporter.mq5 line 333):**
-- Uses hardcoded `15` lookback bars → Change to `61` if retraining
+✅ **Data Export Configuration (MT5DataExporter.mq5):**
+- `Input_Include_Parameters = true` ← **Enable parameter export**
+- Uses hardcoded `61` lookback bars (line 387) ← **MUST MATCH EA**
 
 ⚠️ **Mismatch = "Feature count mismatch" error in journal!**
 
