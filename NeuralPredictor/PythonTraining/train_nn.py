@@ -63,6 +63,18 @@ def load_data(filepath):
     
     print(f"Loaded {len(df)} samples")
     
+    # Clean data - remove invalid labels
+    initial_count = len(df)
+    valid_labels = (df.iloc[:, -1] == 1.0) | (df.iloc[:, -1] == 0.0)
+    df = df[valid_labels]
+    
+    # Remove any rows with NaN values
+    df = df.dropna()
+    
+    removed_count = initial_count - len(df)
+    if removed_count > 0:
+        print(f"Removed {removed_count} invalid samples")
+    
     # Separate features and labels
     X = df.iloc[:, :-1].values  # All columns except last
     y = df.iloc[:, -1].values    # Last column (Label)
