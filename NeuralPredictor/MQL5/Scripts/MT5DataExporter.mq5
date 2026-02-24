@@ -467,9 +467,8 @@ void OnStart()
       params.macd_signal = Input_MACD_Signal;
       params.atr_period = Input_ATR_Period;
       params.bb_period = Input_BB_Period;
-      params.bb_deviation =  (lookback bars should match EA setting - currently 61 for trained model)
-      double features[];
-      if(!g_lib.PrepareFeatures(features, i, 61))  // Use 61 lookback bars to match trained model
+      params.bb_deviation = Input_BB_Deviation;
+      
       g_lib.SetParameters(params);
       
       Print("Parameter features ENABLED - Will include EA settings in export");
