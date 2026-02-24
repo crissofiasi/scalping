@@ -361,7 +361,7 @@ public:
 input int      Input_Export_Bars = 10000;           // Bars to export
 input double   Input_Target_Move_Pips = 10.0;       // Target move for labeling (pips)
 input int      Input_Lookforward_Bars = 15;         // Bars to look ahead for label
-input bool     Input_Use_Multi_Timeframe = false;   // Export multi-timeframe data
+input bool     Input_Use_Multi_Timeframe = true;    // Export multi-timeframe data
 input ENUM_TIMEFRAMES Input_Timeframe_2 = PERIOD_M15;  // Second timeframe (if MTA)
 input ENUM_TIMEFRAMES Input_Timeframe_3 = PERIOD_M30;  // Third timeframe (if MTA)
 input string   Input_Output_Filename = "nn_training_data.csv";  // Output filename
