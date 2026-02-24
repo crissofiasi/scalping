@@ -2,6 +2,24 @@
 
 A complete Neural Network-based Expert Advisor for MetaTrader 5 that predicts future market moves using machine learning.
 
+## ⚠️ CRITICAL: Feature Count Configuration
+
+**The EA and training data MUST use the same number of lookback bars!**
+
+Current trained model expects: **71 features** (8 indicators + **61 lookback bars** + 2 time features)
+
+✅ **EA Configuration (NeuralPredictorEA.mq5):**
+- `Input_Lookback_Bars = 61` ← **MUST MATCH training data**
+
+✅ **Data Export Configuration (MT5DataExporter.mq5 line 333):**
+- Uses hardcoded `15` lookback bars → Change to `61` if retraining
+
+⚠️ **Mismatch = "Feature count mismatch" error in journal!**
+
+If you retrain with different settings, update BOTH files to match.
+
+---
+
 ## ⭐ Key Features
 
 - **Configurable Confidence Threshold** - Only trade when NN is confident

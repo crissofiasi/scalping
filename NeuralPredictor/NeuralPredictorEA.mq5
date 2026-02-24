@@ -49,7 +49,7 @@ input int                Input_MACD_Signal = 9;                        // MACD S
 input int                Input_ATR_Period = 14;                        // ATR Period
 input int                Input_BB_Period = 20;                         // Bollinger Bands Period
 input double             Input_BB_Deviation = 2.0;                     // BB Deviation
-input int                Input_Lookback_Bars = 15;                     // Lookback Bars for Patterns
+input int                Input_Lookback_Bars = 61;                     // Lookback Bars for Patterns (MUST match training data!)
 
 //--- Money Management
 input group "═══════════ Money Management ═══════════"
@@ -223,16 +223,20 @@ int OnInit()
    Print("NeuralPredictorEA initialized successfully");
    Print("Symbol: ", symbol, " | Timeframe: ", EnumToString(Input_Prediction_Timeframe));
    Print("Target Move: ", Input_Target_Move_Pips, " pips | Min Confidence: ", Input_Min_Confidence);
+   Print("Lookback Bars: ", Input_Lookback_Bars);
+   
+   // Calculate expected features
+   int expected_features = 8 + Input_Lookback_Bars + 2; // indicators + lookback + time
    
    if(Input_Use_Multi_Timeframe)
    {
       Print("Multi-timeframe mode: ", EnumToString(Input_Prediction_Timeframe), " + ",
             EnumToString(Input_Timeframe_2), " + ", EnumToString(Input_Timeframe_3));
-      Print("Expected features: 75 (25 per timeframe)");
+      Print("Expected features: ", expected_features * 3, " (", expected_features, " per timeframe)");
    }
    else
    {
-      Print("Single timeframe mode - Expected features: 25");
+      Print("Single timeframe mode - Expected features: ", expected_features);
    }
    
    return INIT_SUCCEEDED;
@@ -399,6 +403,11 @@ int GetPrediction(double &confidence)
       Print("ERROR: No features prepared");
       confidence = 0.0;
       return 0;
+   }
+   
+   if(Input_Debug_Mode)
+   {
+      Print("Features prepared: ", num_features, " (Expected: ", (8 + Input_Lookback_Bars + 2), ")");
    }
    
    //--- Initialize input buffer with features
