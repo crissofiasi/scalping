@@ -360,7 +360,7 @@ public:
 //+------------------------------------------------------------------+
 input int      Input_Export_Bars = 10000;           // Bars to export
 input double   Input_Target_Move_Pips = 10.0;       // Target move for labeling (pips)
-input int      Input_Lookforward_Bars = 15;         // Bars to look ahead for label
+input int      Input_Lookforward_Bars = 50;         // Bars to look ahead for label (increased for more samples)
 input bool     Input_Use_Multi_Timeframe = true;    // Export multi-timeframe data
 input ENUM_TIMEFRAMES Input_Timeframe_2 = PERIOD_M15;  // Second timeframe (if MTA)
 input ENUM_TIMEFRAMES Input_Timeframe_3 = PERIOD_M30;  // Third timeframe (if MTA)
@@ -501,7 +501,7 @@ void OnStart()
    {
       //--- Extract features
       double features[];
-      if(!g_lib.PrepareFeatures(features, i, 15))  // 15 lookback bars for price patterns
+      if(!g_lib.PrepareFeatures(features, i, 61))  // 61 lookback bars to match trained model
       {
          skipped_count++;
          continue;
@@ -560,8 +560,8 @@ void WriteCSVHeader(int file_handle)
       header += "BB_Lower_Dist" + tf_suffix + ",";
       header += "BB_Middle_Dist" + tf_suffix + ",";
       
-      //--- Price patterns (15 features)
-      for(int i = 1; i <= 15; i++)
+      //--- Price patterns (61 lookback bars)
+      for(int i = 1; i <= 61; i++)
          header += "Price_Bar" + IntegerToString(i) + tf_suffix + ",";
       
       //--- Time features (2 features) - only for first timeframe
