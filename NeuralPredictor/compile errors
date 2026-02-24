@@ -1,42 +1,15 @@
 MT5DataExporter.mq5			
-undeclared identifier 'SParameterFeatures'	MT5DataExporter.mq5	333	7
-undeclared identifier 'params'	MT5DataExporter.mq5	333	26
-'params' - some operator expected	MT5DataExporter.mq5	333	26
-undeclared identifier 'params'	MT5DataExporter.mq5	334	7
-undeclared identifier 'params'	MT5DataExporter.mq5	335	7
-undeclared identifier 'params'	MT5DataExporter.mq5	336	7
-undeclared identifier 'params'	MT5DataExporter.mq5	337	7
-undeclared identifier 'params'	MT5DataExporter.mq5	338	7
-undeclared identifier 'params'	MT5DataExporter.mq5	339	7
-undeclared identifier 'params'	MT5DataExporter.mq5	340	7
-undeclared identifier 'params'	MT5DataExporter.mq5	341	7
-'params' - cannot convert enum	MT5DataExporter.mq5	341	7
-undeclared identifier 'params'	MT5DataExporter.mq5	342	7
-'params' - cannot convert enum	MT5DataExporter.mq5	342	7
-undeclared identifier 'params'	MT5DataExporter.mq5	343	7
-'params' - cannot convert enum	MT5DataExporter.mq5	343	7
-undeclared identifier 'params'	MT5DataExporter.mq5	344	7
-undeclared identifier 'params'	MT5DataExporter.mq5	345	7
-undeclared identifier 'params'	MT5DataExporter.mq5	346	7
-undeclared identifier 'params'	MT5DataExporter.mq5	347	7
-undeclared identifier 'params'	MT5DataExporter.mq5	348	7
-undeclared identifier 'params'	MT5DataExporter.mq5	349	7
-undeclared identifier 'params'	MT5DataExporter.mq5	350	7
-undeclared identifier 'params'	MT5DataExporter.mq5	351	7
-undeclared identifier 'lookback'	MT5DataExporter.mq5	351	31
-undeclared identifier 'bars'	MT5DataExporter.mq5	351	40
-'bars' - some operator expected	MT5DataExporter.mq5	351	40
-undeclared identifier 'match'	MT5DataExporter.mq5	351	52
-'match' - some operator expected	MT5DataExporter.mq5	351	52
-undeclared identifier 'setting'	MT5DataExporter.mq5	351	61
-undeclared identifier 'currently'	MT5DataExporter.mq5	351	71
-'61' - some operator expected	MT5DataExporter.mq5	351	81
-result of expression not used	MT5DataExporter.mq5	351	69
-undeclared identifier 'trained'	MT5DataExporter.mq5	351	88
-undeclared identifier 'model'	MT5DataExporter.mq5	351	96
-'model' - some operator expected	MT5DataExporter.mq5	351	96
-undeclared identifier 'i'	MT5DataExporter.mq5	353	43
-undeclared identifier 'SetParameters'	MT5DataExporter.mq5	354	13
-undeclared identifier 'params'	MT5DataExporter.mq5	354	27
-'params' - some operator expected	MT5DataExporter.mq5	354	27
-39 errors, 1 warnings		39	1
+undeclared identifier 'lookback'	MT5DataExporter.mq5	470	31
+undeclared identifier 'bars'	MT5DataExporter.mq5	470	40
+'bars' - some operator expected	MT5DataExporter.mq5	470	40
+undeclared identifier 'match'	MT5DataExporter.mq5	470	52
+'match' - some operator expected	MT5DataExporter.mq5	470	52
+undeclared identifier 'setting'	MT5DataExporter.mq5	470	61
+undeclared identifier 'currently'	MT5DataExporter.mq5	470	71
+'61' - some operator expected	MT5DataExporter.mq5	470	81
+result of expression not used	MT5DataExporter.mq5	470	69
+undeclared identifier 'trained'	MT5DataExporter.mq5	470	88
+undeclared identifier 'model'	MT5DataExporter.mq5	470	96
+'model' - some operator expected	MT5DataExporter.mq5	470	96
+undeclared identifier 'i'	MT5DataExporter.mq5	472	43
+12 errors, 1 warnings		12	1
