@@ -27,8 +27,9 @@ input group "=== Trade Settings ==="
 input string ProviderComment = "CopyTrade";                       // Provider Trade Comment (to identify)
 input int ProviderMagicNumber = 0;                               // Provider Magic Number (0 = any)
 input int OurMagicNumber = 123456;                               // Our Magic Number
-input int Slippage = 10;                                         // Slippage in points
+input int Slippage = 50;                                         // Max slippage/distance (points)
 input string TradeComment = "LotMultiplier";                     // Comment for our trades
+input bool AutoCloseComplementary = true;                        // Close complementary when provider closes
 
 input group "=== Risk Settings ==="
 input bool UseStopLoss = false;                                  // Use Stop Loss
@@ -129,6 +130,12 @@ void CheckForNewProviderTrades()
    
    // Clean up closed positions from processed trades
    CleanupProcessedTrades();
+   
+   // Check and close complementary trades if provider closed
+   if(AutoCloseComplementary)
+   {
+      CheckAndCloseOrphanedComplementaryTrades();
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -225,6 +232,124 @@ bool HasComplementaryTrade(ulong providerTicket)
 }
 
 //+------------------------------------------------------------------+
+//| Get complementary trade ticket for provider ticket               |
+//+------------------------------------------------------------------+
+ulong GetComplementaryTradeTicket(ulong providerTicket)
+{
+   string searchComment = "[" + IntegerToString(providerTicket) + "]";
+   
+   int total = PositionsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0)
+      {
+         long magic = PositionGetInteger(POSITION_MAGIC);
+         string comment = PositionGetString(POSITION_COMMENT);
+         
+         // Check if this is our complementary trade
+         if(magic == OurMagicNumber && StringFind(comment, searchComment) >= 0)
+         {
+            return ticket;
+         }
+      }
+   }
+   return 0;
+}
+
+//+------------------------------------------------------------------+
+//| Check and close complementary trades for closed provider trades  |
+//+------------------------------------------------------------------+
+void CheckAndCloseOrphanedComplementaryTrades()
+{
+   // Get all our complementary positions
+   int total = PositionsTotal();
+   for(int i = total - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0)
+      {
+         long magic = PositionGetInteger(POSITION_MAGIC);
+         
+         if(magic == OurMagicNumber)
+         {
+            string comment = PositionGetString(POSITION_COMMENT);
+            
+            // Extract provider ticket from comment [123456]
+            int startPos = StringFind(comment, "[");
+            int endPos = StringFind(comment, "]");
+            
+            if(startPos >= 0 && endPos > startPos)
+            {
+               string ticketStr = StringSubstr(comment, startPos + 1, endPos - startPos - 1);
+               ulong providerTicket = StringToInteger(ticketStr);
+               
+               // Check if provider position still exists
+               if(!PositionSelectByTicket(providerTicket))
+               {
+                  // Provider closed, close our complementary trade
+                  Print("Provider trade ", providerTicket, " closed. Closing complementary trade ", ticket);
+                  ClosePosition(ticket);
+               }
+            }
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Close a position by ticket                                       |
+//+------------------------------------------------------------------+
+bool ClosePosition(ulong ticket)
+{
+   if(!PositionSelectByTicket(ticket))
+   {
+      Print("Error: Cannot select position ", ticket, " to close");
+      return false;
+   }
+   
+   string symbol = PositionGetString(POSITION_SYMBOL);
+   double volume = PositionGetDouble(POSITION_VOLUME);
+   ENUM_POSITION_TYPE posType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+   
+   MqlTradeRequest request = {};
+   MqlTradeResult result = {};
+   
+   request.action = TRADE_ACTION_DEAL;
+   request.symbol = symbol;
+   request.volume = volume;
+   request.type = (posType == POSITION_TYPE_BUY) ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
+   request.position = ticket;
+   request.deviation = Slippage;
+   request.magic = OurMagicNumber;
+   
+   // Set price
+   if(posType == POSITION_TYPE_BUY)
+   {
+      request.price = SymbolInfoDouble(symbol, SYMBOL_BID);
+   }
+   else
+   {
+      request.price = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   }
+   
+   request.type_filling = ORDER_FILLING_FOK;
+   
+   bool sent = OrderSend(request, result);
+   
+   if(sent && result.retcode == TRADE_RETCODE_DONE)
+   {
+      Print("Position ", ticket, " closed successfully");
+      return true;
+   }
+   else
+   {
+      Print("Error closing position ", ticket, ": ", result.retcode, " - ", result.comment);
+      return false;
+   }
+}
+
+//+------------------------------------------------------------------+
 //| Process provider position and open complementary trade           |
 //+------------------------------------------------------------------+
 void ProcessProviderPosition(ulong providerTicket)
@@ -245,7 +370,18 @@ void ProcessProviderPosition(ulong providerTicket)
    string symbol = PositionGetString(POSITION_SYMBOL);
    double providerVolume = PositionGetDouble(POSITION_VOLUME);
    ENUM_POSITION_TYPE providerType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
-   double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+   double providerOpenPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+   
+   // Check slippage distance from provider's open price
+   double currentPrice = (providerType == POSITION_TYPE_BUY) ? SymbolInfoDouble(symbol, SYMBOL_ASK) : SymbolInfoDouble(symbol, SYMBOL_BID);
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   double priceDistance = MathAbs(currentPrice - providerOpenPrice) / point;
+   
+   if(priceDistance > Slippage)
+   {
+      Print("Price moved too far from provider open price. Distance: ", priceDistance, " points. Max allowed: ", Slippage, ". Skipping.");
+      return;
+   }
    
    // Calculate total volume based on multiplication type
    double totalVolume = CalculateTotalVolume(providerVolume);
