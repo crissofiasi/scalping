@@ -1,0 +1,17 @@
+; Configuration for LotMultiplierEA
+; Classic Mode - Double Provider Volume
+
+MultiplicationType=1
+Factor=2.00000000
+ProviderBalance=10000.00000000
+FixedVolume=0.10000000
+MinNewVolume=0.01000000
+ProviderComment=CopyTrade
+ProviderMagicNumber=0
+OurMagicNumber=123456
+Slippage=10
+TradeComment=LotMultiplier
+UseStopLoss=false
+StopLossPips=50.00000000
+UseTakeProfit=false
+TakeProfitPips=100.00000000
