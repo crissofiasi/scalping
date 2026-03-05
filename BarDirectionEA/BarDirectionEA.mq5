@@ -286,10 +286,10 @@ void OpenReversalTrade(int idx, double revPts, double point)
 
       //--- Adjust original volume by closing and reopening
       double curLot = PositionGetDouble(POSITION_VOLUME);
-      if(MathAbs(adjLot - curLot) >= SymbolInfoDouble(TradeSymbol, SYMBOL_VOLUME_STEP))
+      if(MathAbs(adjLot - curLot) >= SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP))
       {
          double extraLot = NormalizeVolume(adjLot - curLot);
-         if(extraLot >= SymbolInfoDouble(TradeSymbol, SYMBOL_VOLUME_MIN))
+         if(extraLot >= SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN))
          {
             //--- Add extra lot as an additional position (same direction, same TP + SL)
             string adjComment = TradeComment + "_" + TAG_ORIG + "_adj";
