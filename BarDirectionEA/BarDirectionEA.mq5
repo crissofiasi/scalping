@@ -284,7 +284,14 @@ void OpenReversalNow(int origIdx, double revPts, double point, double bid, doubl
    //    Floor at BaseLotSize to ensure we always add something meaningful
    double rawHedgeLot = totalLosingLot * (tp_pts + revPts) / tp_pts + BaseLotSize - totalWinningLot;
    double adjHedgeLot = NormalizeVolume(MathMax(rawHedgeLot, BaseLotSize));
-
+   //--- Stop hedging if required lot exceeds MaxLotSize cap
+   if(rawHedgeLot > MaxLotSize)
+   {
+      Print("HEDGING STOPPED: required lot ", rawHedgeLot,
+            " exceeds MaxLotSize ", MaxLotSize,
+            ". Positions will float until TP/SL hit naturally.");
+      return;
+   }
    //--- Open new hedge at market
    string revComment = TradeComment + "_" + TAG_REV;
    bool   okRev      = false;
