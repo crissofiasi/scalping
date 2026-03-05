@@ -36,14 +36,13 @@ input bool   OneTradePerBar     = true;       // Only one entry per bar (each di
 //--- Trade record
 struct TradeRec
 {
-   ulong    ticket;              // position ticket
-   int      direction;           // 1 = BUY, -1 = SELL
+   ulong    ticket;        // position ticket
+   int      direction;     // 1 = BUY, -1 = SELL
    double   entryPrice;
    double   tpPoints;
-   double   baseLot;             // base lot at entry
-   bool     hedged;              // reversal pending already fired?
-   ulong    hedgeTicket;         // counterpart position ticket (0 if none)
-   ulong    pendingOrderTicket;  // pending STOP order ticket (0 if none)
+   double   baseLot;
+   bool     hedged;        // reversal already fired?
+   ulong    hedgeTicket;   // counterpart position ticket (0 if none)
    datetime barTime;
    bool     isReversal;
 };
@@ -87,10 +86,10 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   //--- 1. Check if any reversal pending orders have been filled
-   CheckPendingOrders();
+   //--- 1. Check reversal thresholds on every tick
+   CheckReversalTriggers();
 
-   //--- 2. Check for new bar entry
+   //--- 2. Check for new bar entry (only when no open EA trades)
    datetime barTimes[];
    if(CopyTime(_Symbol, _Period, 0, 2, barTimes) < 2) return;
 
@@ -99,7 +98,10 @@ void OnTick()
    if(currentBarTime != g_lastBarTime)
    {
       g_lastBarTime = currentBarTime;
-      OnNewBar(currentBarTime);
+      if(CountOpenEATrades() == 0)
+         OnNewBar(currentBarTime);
+      else
+         Print("New bar ignored – ", CountOpenEATrades(), " EA trade(s) still open.");
    }
 
    //--- 3. Clean stale records
@@ -145,7 +147,25 @@ void OnNewBar(datetime closedBarTime)
 }
 
 //+------------------------------------------------------------------+
-//| Open an original trade and immediately place reversal pending    |
+//| Count open EA positions on this symbol                           |
+//+------------------------------------------------------------------+
+int CountOpenEATrades()
+{
+   int count = 0;
+   int total = PositionsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      ulong t = PositionGetTicket(i);
+      if(!PositionSelectByTicket(t)) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != MagicNumber) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol)     continue;
+      count++;
+   }
+   return count;
+}
+
+//+------------------------------------------------------------------+
+//| Open an original trade and track it                              |
 //+------------------------------------------------------------------+
 bool OpenOriginalTrade(ENUM_ORDER_TYPE type, double price, double tp, datetime barTime)
 {
@@ -166,160 +186,111 @@ bool OpenOriginalTrade(ENUM_ORDER_TYPE type, double price, double tp, datetime b
    ulong posTicket = GetPositionTicketByOrder(trade.ResultOrder());
 
    TradeRec rec;
-   rec.ticket             = posTicket;
-   rec.direction          = (type == ORDER_TYPE_BUY) ? 1 : -1;
-   rec.entryPrice         = price;
-   rec.tpPoints           = TpPoints;
-   rec.baseLot            = BaseLotSize;
-   rec.hedged             = false;
-   rec.hedgeTicket        = 0;
-   rec.pendingOrderTicket = 0;
-   rec.barTime            = barTime;
-   rec.isReversal         = false;
+   rec.ticket      = posTicket;
+   rec.direction   = (type == ORDER_TYPE_BUY) ? 1 : -1;
+   rec.entryPrice  = price;
+   rec.tpPoints    = TpPoints;
+   rec.baseLot     = BaseLotSize;
+   rec.hedged      = false;
+   rec.hedgeTicket = 0;
+   rec.barTime     = barTime;
+   rec.isReversal  = false;
 
    int sz = ArraySize(g_trades);
    ArrayResize(g_trades, sz + 1);
    g_trades[sz] = rec;
 
-   //--- Place reversal pending immediately
-   PlaceReversalPending(sz);
-
    return true;
 }
 
 //+------------------------------------------------------------------+
-//| Place a STOP pending order on the adverse side of a position     |
+//| Check all unhedged trades on every tick for reversal touch       |
 //+------------------------------------------------------------------+
-void PlaceReversalPending(int idx)
+void CheckReversalTriggers()
 {
-   int    dir        = g_trades[idx].direction;
-   double entry      = g_trades[idx].entryPrice;
-   double tp_pts     = g_trades[idx].tpPoints;
-   double baseLot    = g_trades[idx].baseLot;
-   ulong  origTicket = g_trades[idx].ticket;
-
    double point         = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   double reversePoints = tp_pts * ReversePct / 100.0;
-   int    digits        = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   double reversePoints = TpPoints * ReversePct / 100.0;
+   double bid           = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double ask           = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
 
-   string pendComment = TradeComment + "_" + TAG_REV + "_[" + IntegerToString(origTicket) + "]";
-
-   double pendPrice, pendTP;
-   bool   ok = false;
-
-   if(dir == 1)   // original BUY → SELL STOP below entry
-   {
-      pendPrice = NormalizeDouble(entry - reversePoints * point, digits);
-      pendTP    = NormalizeDouble(pendPrice - tp_pts * point,    digits);
-      ok = trade.SellStop(baseLot, pendPrice, _Symbol, 0, pendTP,
-                          ORDER_TIME_GTC, 0, pendComment);
-   }
-   else           // original SELL → BUY STOP above entry
-   {
-      pendPrice = NormalizeDouble(entry + reversePoints * point, digits);
-      pendTP    = NormalizeDouble(pendPrice + tp_pts * point,    digits);
-      ok = trade.BuyStop(baseLot, pendPrice, _Symbol, 0, pendTP,
-                         ORDER_TIME_GTC, 0, pendComment);
-   }
-
-   if(ok)
-   {
-      g_trades[idx].pendingOrderTicket = trade.ResultOrder();
-      Print("Reversal STOP pending placed. Order: ", g_trades[idx].pendingOrderTicket,
-            "  Price: ", pendPrice, "  TP: ", pendTP);
-   }
-   else
-      Print("PlaceReversalPending failed: ", trade.ResultRetcode(),
-            " - ", trade.ResultRetcodeDescription());
-}
-
-//+------------------------------------------------------------------+
-//| On tick: check if any reversal pending has been filled           |
-//+------------------------------------------------------------------+
-void CheckPendingOrders()
-{
    int sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
-      if(g_trades[i].pendingOrderTicket == 0) continue;
-      if(g_trades[i].hedged)                  continue;
+      if(g_trades[i].hedged)     continue;
+      if(g_trades[i].isReversal) continue; // reversals are not re-hedged
 
-      ulong pendTicket = g_trades[i].pendingOrderTicket;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
 
-      //--- Still in the pending pool?
-      if(OrderSelect(pendTicket)) continue;
+      double entry = g_trades[i].entryPrice;
+      int    dir   = g_trades[i].direction;
 
-      //--- Order is gone – check history
-      if(!HistoryOrderSelect(pendTicket))
-      {
-         //--- Not in history yet – may be a brief delay; try next tick
-         continue;
-      }
+      //--- Check if price has touched the reversal threshold
+      bool touched = false;
+      if(dir == 1)  touched = (bid <= entry - reversePoints * point); // BUY: price fell
+      else           touched = (ask >= entry + reversePoints * point); // SELL: price rose
 
-      ENUM_ORDER_STATE state = (ENUM_ORDER_STATE)HistoryOrderGetInteger(pendTicket, ORDER_STATE);
+      if(!touched) continue;
 
-      if(state != ORDER_STATE_FILLED)
-      {
-         //--- Cancelled / rejected – clear and do not re-place
-         Print("Reversal pending ", pendTicket, " removed without fill (state: ",
-               EnumToString(state), ")");
-         g_trades[i].pendingOrderTicket = 0;
-         continue;
-      }
+      Print("Reversal threshold touched for ticket ", g_trades[i].ticket,
+            "  Entry: ", entry, "  Dir: ", dir,
+            "  RevPts: ", reversePoints);
 
-      //--- Filled – find the resulting position by comment
-      string pendComment = HistoryOrderGetString(pendTicket, ORDER_COMMENT);
-      ulong  revPosTicket = FindPositionByComment(pendComment);
+      OpenReversalNow(i, reversePoints, point, bid, ask);
 
-      if(revPosTicket == 0)
-      {
-         Print("Pending ", pendTicket, " filled but position not found yet. Will retry.");
-         continue;  // retry next tick – position may not be registered yet
-      }
-
-      Print("Reversal pending FILLED. Order: ", pendTicket,
-            "  New position: ", revPosTicket);
-
-      g_trades[i].pendingOrderTicket = 0;
-      OnReversalPendingFilled(i, revPosTicket);
-
-      //--- Refresh size in case array was resized inside OnReversalPendingFilled
+      //--- Refresh size after array may have grown
       sz = ArraySize(g_trades);
    }
 }
 
 //+------------------------------------------------------------------+
-//| Handle a filled reversal pending order                           |
+//| Open reversal at market immediately, adjust original             |
 //+------------------------------------------------------------------+
-void OnReversalPendingFilled(int origIdx, ulong revPosTicket)
+void OpenReversalNow(int origIdx, double revPts, double point, double bid, double ask)
 {
    ulong  origTicket = g_trades[origIdx].ticket;
    int    dir        = g_trades[origIdx].direction;
    double baseLot    = g_trades[origIdx].baseLot;
    double tp_pts     = g_trades[origIdx].tpPoints;
 
-   double point         = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   double reversePoints = tp_pts * ReversePct / 100.0;
-
-   //--- Read reversal position details
-   if(!PositionSelectByTicket(revPosTicket))
+   double revEntry, revTP;
+   if(dir == 1)   // original BUY → reversal SELL at market
    {
-      Print("Cannot select reversal position ", revPosTicket);
-      return;
+      revEntry = bid;
+      revTP    = NormalizeDouble(revEntry - tp_pts * point,
+                                 (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
    }
-   double revEntry = PositionGetDouble(POSITION_PRICE_OPEN);
-   double revTP    = PositionGetDouble(POSITION_TP);
-
-   Print("Reversal position: entry=", revEntry, " TP=", revTP);
+   else           // original SELL → reversal BUY at market
+   {
+      revEntry = ask;
+      revTP    = NormalizeDouble(revEntry + tp_pts * point,
+                                 (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
+   }
 
    //--- New SL for original = reversal's TP
    double origNewSL = revTP;
 
-   //--- Volume adjustment for original:
-   //    adj_lot × tp_pts = base_lot × tp_pts + base_lot × rev_pts
-   double adjLot = NormalizeVolume(baseLot * (tp_pts + reversePoints) / tp_pts);
+   //--- Volume adjustment: adj_lot × tp_pts = base_lot × (tp_pts + rev_pts)
+   double adjLot = NormalizeVolume(baseLot * (tp_pts + revPts) / tp_pts);
 
-   //--- Adjust original: move SL + add extra volume
+   //--- Open reversal at market
+   string revComment = TradeComment + "_" + TAG_REV;
+   bool   okRev      = false;
+   if(dir == 1)
+      okRev = trade.Sell(baseLot, _Symbol, revEntry, 0, revTP, revComment);
+   else
+      okRev = trade.Buy (baseLot, _Symbol, revEntry, 0, revTP, revComment);
+
+   if(!okRev)
+   {
+      Print("Reversal order failed: ", trade.ResultRetcode(), " - ", trade.ResultRetcodeDescription());
+      return;
+   }
+
+   ulong revTicket = GetPositionTicketByOrder(trade.ResultOrder());
+   Print("Reversal opened. Ticket: ", revTicket,
+         "  Entry: ", revEntry, "  TP: ", revTP, "  Lot: ", baseLot);
+
+   //--- Adjust original: move SL + top up volume
    if(PositionSelectByTicket(origTicket))
    {
       double origTP  = PositionGetDouble(POSITION_TP);
@@ -328,16 +299,13 @@ void OnReversalPendingFilled(int origIdx, ulong revPosTicket)
       if(!trade.PositionModify(origTicket, origNewSL, origTP))
          Print("Modify original SL failed: ", trade.ResultRetcode());
       else
-         Print("Original SL moved to reversal TP: ", origNewSL);
+         Print("Original SL moved to: ", origNewSL);
 
-      //--- Add the extra fractional lot to bring total up to adjLot
       double extraLot = NormalizeVolume(adjLot - curLot);
       if(extraLot >= SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN))
       {
          string adjComment = TradeComment + "_" + TAG_ORIG + "_adj";
          bool   okAdj      = false;
-         double ask        = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-         double bid        = SymbolInfoDouble(_Symbol, SYMBOL_BID);
          if(dir == 1)
             okAdj = trade.Buy (extraLot, _Symbol, ask, origNewSL, origTP, adjComment);
          else
@@ -352,45 +320,23 @@ void OnReversalPendingFilled(int origIdx, ulong revPosTicket)
 
    //--- Mark original as hedged
    g_trades[origIdx].hedged      = true;
-   g_trades[origIdx].hedgeTicket = revPosTicket;
+   g_trades[origIdx].hedgeTicket = revTicket;
 
-   //--- Register reversal position and place a new pending on its adverse side
+   //--- Register reversal (reversals are NOT further hedged)
    TradeRec revRec;
-   revRec.ticket             = revPosTicket;
-   revRec.direction          = -dir;
-   revRec.entryPrice         = revEntry;
-   revRec.tpPoints           = tp_pts;
-   revRec.baseLot            = baseLot;
-   revRec.hedged             = false;
-   revRec.hedgeTicket        = origTicket;
-   revRec.pendingOrderTicket = 0;
-   revRec.barTime            = g_trades[origIdx].barTime;
-   revRec.isReversal         = true;
+   revRec.ticket      = revTicket;
+   revRec.direction   = -dir;
+   revRec.entryPrice  = revEntry;
+   revRec.tpPoints    = tp_pts;
+   revRec.baseLot     = baseLot;
+   revRec.hedged      = false;
+   revRec.hedgeTicket = origTicket;
+   revRec.barTime     = g_trades[origIdx].barTime;
+   revRec.isReversal  = true;
 
    int sz = ArraySize(g_trades);
    ArrayResize(g_trades, sz + 1);
    g_trades[sz] = revRec;
-
-   //--- Place next pending on the other side of the reversal position
-   PlaceReversalPending(sz);
-}
-
-//+------------------------------------------------------------------+
-//| Find an open position whose comment contains the given string    |
-//+------------------------------------------------------------------+
-ulong FindPositionByComment(string commentPattern)
-{
-   int total = PositionsTotal();
-   for(int i = 0; i < total; i++)
-   {
-      ulong t = PositionGetTicket(i);
-      if(!PositionSelectByTicket(t)) continue;
-      if(PositionGetInteger(POSITION_MAGIC) != MagicNumber) continue;
-      if(PositionGetString(POSITION_SYMBOL) != _Symbol)     continue;
-      if(StringFind(PositionGetString(POSITION_COMMENT), commentPattern) >= 0)
-         return t;
-   }
-   return 0;
 }
 
 //+------------------------------------------------------------------+
@@ -402,18 +348,7 @@ void PruneClosedTrades()
    for(int i = ArraySize(g_trades) - 1; i >= 0; i--)
    {
       if(!PositionSelectByTicket(g_trades[i].ticket))
-      {
-         //--- Cancel dangling pending if any
-         ulong pendTicket = g_trades[i].pendingOrderTicket;
-         if(pendTicket != 0 && OrderSelect(pendTicket))
-         {
-            if(trade.OrderDelete(pendTicket))
-               Print("Cancelled orphan pending ", pendTicket, " (position closed)");
-            else
-               Print("Failed to cancel pending ", pendTicket, ": ", trade.ResultRetcode());
-         }
          ArrayRemove(g_trades, i, 1);
-      }
    }
 }
 
