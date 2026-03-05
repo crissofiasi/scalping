@@ -4,10 +4,11 @@
 //|                                                                  |
 //|  Strategy:                                                       |
 //|  1. On bar close enter in bar direction, TP = TpPoints           |
-//|  2. If price moves against by ReversePct% of TpPoints → hedge:  |
-//|     - Open opposite trade, same TpPoints                         |
-//|     - Move original SL to new trade's TP level                  |
-//|     - Adjust original lot so hitting TP earns base_lot × TpPts  |
+//|  2. If ANY open position moves against by ReversePct% of TP:     |
+//|     - Open opposite hedge with calculated lot                    |
+//|     - Move ALL same-direction positions SL to new hedge TP       |
+//|     - Hedge lot covers total losing-side volume + target profit  |
+//|     - Repeats on every new reversal (multi-level hedging)        |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, Cris Trading"
 #property link      ""
@@ -216,8 +217,7 @@ void CheckReversalTriggers()
    int sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
-      if(g_trades[i].hedged)     continue;
-      if(g_trades[i].isReversal) continue; // reversals are not re-hedged
+      if(g_trades[i].hedged) continue;   // already triggered a reversal
 
       if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
 
@@ -247,38 +247,41 @@ void CheckReversalTriggers()
 //+------------------------------------------------------------------+
 void OpenReversalNow(int origIdx, double revPts, double point, double bid, double ask)
 {
-   ulong  origTicket = g_trades[origIdx].ticket;
-   int    dir        = g_trades[origIdx].direction;
-   double baseLot    = g_trades[origIdx].baseLot;
-   double tp_pts     = g_trades[origIdx].tpPoints;
+   int    dir    = g_trades[origIdx].direction;
+   double tp_pts = g_trades[origIdx].tpPoints;
 
    double revEntry, revTP;
-   if(dir == 1)   // original BUY → reversal SELL at market
+   if(dir == 1)   // triggering BUY → new hedge SELL
    {
       revEntry = bid;
       revTP    = NormalizeDouble(revEntry - tp_pts * point,
                                  (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
    }
-   else           // original SELL → reversal BUY at market
+   else           // triggering SELL → new hedge BUY
    {
       revEntry = ask;
       revTP    = NormalizeDouble(revEntry + tp_pts * point,
                                  (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
    }
 
-   //--- New SL for original = reversal's TP
-   double origNewSL = revTP;
+   //--- Sum ALL open EA lots on the losing side (same direction as triggering position)
+   double totalLosingLot = 0.0;
+   int sz = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(g_trades[i].direction != dir) continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      totalLosingLot += PositionGetDouble(POSITION_VOLUME);
+   }
 
-   //--- Volume adjustment on the HEDGE:
-   //    hedge_lot × tp_pts must cover original loss + target profit
-   //    hedge_lot × tp_pts = baseLot × (tp_pts + rev_pts)  [original loss]
-   //                       + baseLot × tp_pts              [target profit]
-   //    → hedge_lot = baseLot × (2 × tp_pts + rev_pts) / tp_pts
-   //    → extra to add on top of baseLot already opened:
-   //      extraLot = baseLot × (tp_pts + rev_pts) / tp_pts
-   double adjHedgeLot = NormalizeVolume(baseLot * (2.0 * tp_pts + revPts) / tp_pts);
+   //--- New hedge volume:
+   //    hedge × tp = totalLosingLot × (tp + rev)  [cover all losing-side losses to new SL]
+   //               + BaseLotSize × tp             [target profit]
+   //    → hedge = totalLosingLot × (tp + rev) / tp + BaseLotSize
+   //    (when only 1 losing position at baseLot this reduces to baseLot×(2tp+rev)/tp)
+   double adjHedgeLot = NormalizeVolume(totalLosingLot * (tp_pts + revPts) / tp_pts + BaseLotSize);
 
-   //--- Open reversal at market with the full calculated lot (steps 1+3 combined)
+   //--- Open new hedge at market
    string revComment = TradeComment + "_" + TAG_REV;
    bool   okRev      = false;
    if(dir == 1)
@@ -294,35 +297,39 @@ void OpenReversalNow(int origIdx, double revPts, double point, double bid, doubl
 
    ulong revTicket = GetPositionTicketByOrder(trade.ResultOrder());
    Print("Reversal opened. Ticket: ", revTicket,
-         "  Entry: ", revEntry, "  TP: ", revTP, "  Lot: ", adjHedgeLot);
+         "  Entry: ", revEntry, "  TP: ", revTP,
+         "  Lot: ", adjHedgeLot, "  TotalLosingLot: ", totalLosingLot);
 
-   //--- Adjust original: move SL to reversal's TP
-   if(PositionSelectByTicket(origTicket))
+   //--- Move SL of ALL open losing-side positions to revTP and mark them hedged
+   sz = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
    {
-      double origTP = PositionGetDouble(POSITION_TP);
-      if(!trade.PositionModify(origTicket, origNewSL, origTP))
-         Print("Modify original SL failed: ", trade.ResultRetcode());
+      if(g_trades[i].direction != dir) continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+
+      double existingTP = PositionGetDouble(POSITION_TP);
+      if(!trade.PositionModify(g_trades[i].ticket, revTP, existingTP))
+         Print("Modify SL failed for ticket ", g_trades[i].ticket, ": ", trade.ResultRetcode());
       else
-         Print("Original SL moved to: ", origNewSL);
+         Print("SL moved to ", revTP, " for ticket ", g_trades[i].ticket);
+
+      g_trades[i].hedged      = true;
+      g_trades[i].hedgeTicket = revTicket;
    }
 
-   //--- Mark original as hedged
-   g_trades[origIdx].hedged      = true;
-   g_trades[origIdx].hedgeTicket = revTicket;
-
-   //--- Register reversal (reversals are NOT further hedged)
+   //--- Register new hedge (starts unhedged so it can trigger the next level)
    TradeRec revRec;
    revRec.ticket      = revTicket;
    revRec.direction   = -dir;
    revRec.entryPrice  = revEntry;
    revRec.tpPoints    = tp_pts;
-   revRec.baseLot     = baseLot;
+   revRec.baseLot     = BaseLotSize;
    revRec.hedged      = false;
-   revRec.hedgeTicket = origTicket;
+   revRec.hedgeTicket = 0;
    revRec.barTime     = g_trades[origIdx].barTime;
    revRec.isReversal  = true;
 
-   int sz = ArraySize(g_trades);
+   sz = ArraySize(g_trades);
    ArrayResize(g_trades, sz + 1);
    g_trades[sz] = revRec;
 }
