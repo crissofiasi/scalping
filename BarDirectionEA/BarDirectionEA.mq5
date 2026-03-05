@@ -269,8 +269,14 @@ void OpenReversalNow(int origIdx, double revPts, double point, double bid, doubl
    //--- New SL for original = reversal's TP
    double origNewSL = revTP;
 
-   //--- Volume adjustment: adj_lot × tp_pts = base_lot × (tp_pts + rev_pts)
-   double adjLot = NormalizeVolume(baseLot * (tp_pts + revPts) / tp_pts);
+   //--- Volume adjustment on the HEDGE:
+   //    hedge_lot × tp_pts must cover original loss + target profit
+   //    hedge_lot × tp_pts = baseLot × (tp_pts + rev_pts)  [original loss]
+   //                       + baseLot × tp_pts              [target profit]
+   //    → hedge_lot = baseLot × (2 × tp_pts + rev_pts) / tp_pts
+   //    → extra to add on top of baseLot already opened:
+   //      extraLot = baseLot × (tp_pts + rev_pts) / tp_pts
+   double adjHedgeLot = NormalizeVolume(baseLot * (2.0 * tp_pts + revPts) / tp_pts);
 
    //--- Open reversal at market
    string revComment = TradeComment + "_" + TAG_REV;
@@ -290,32 +296,31 @@ void OpenReversalNow(int origIdx, double revPts, double point, double bid, doubl
    Print("Reversal opened. Ticket: ", revTicket,
          "  Entry: ", revEntry, "  TP: ", revTP, "  Lot: ", baseLot);
 
-   //--- Adjust original: move SL + top up volume
+   //--- Adjust original: move SL only (no volume change on original)
    if(PositionSelectByTicket(origTicket))
    {
-      double origTP  = PositionGetDouble(POSITION_TP);
-      double curLot  = PositionGetDouble(POSITION_VOLUME);
-
+      double origTP = PositionGetDouble(POSITION_TP);
       if(!trade.PositionModify(origTicket, origNewSL, origTP))
          Print("Modify original SL failed: ", trade.ResultRetcode());
       else
          Print("Original SL moved to: ", origNewSL);
+   }
 
-      double extraLot = NormalizeVolume(adjLot - curLot);
-      if(extraLot >= SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN))
-      {
-         string adjComment = TradeComment + "_" + TAG_ORIG + "_adj";
-         bool   okAdj      = false;
-         if(dir == 1)
-            okAdj = trade.Buy (extraLot, _Symbol, ask, origNewSL, origTP, adjComment);
-         else
-            okAdj = trade.Sell(extraLot, _Symbol, bid, origNewSL, origTP, adjComment);
+   //--- Add extra volume to the HEDGE position
+   double extraLot = NormalizeVolume(adjHedgeLot - baseLot);
+   if(extraLot >= SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN))
+   {
+      string adjComment = TradeComment + "_" + TAG_REV + "_adj";
+      bool   okAdj      = false;
+      if(dir == 1)  // hedge is SELL
+         okAdj = trade.Sell(extraLot, _Symbol, bid, 0, revTP, adjComment);
+      else          // hedge is BUY
+         okAdj = trade.Buy (extraLot, _Symbol, ask, 0, revTP, adjComment);
 
-         if(okAdj)
-            Print("Volume adjusted: +", extraLot, " lot(s). Target total: ", adjLot);
-         else
-            Print("Volume adjustment failed: ", trade.ResultRetcode());
-      }
+      if(okAdj)
+         Print("Hedge volume adjusted: +", extraLot, " lot(s). Target hedge total: ", adjHedgeLot);
+      else
+         Print("Hedge volume adjustment failed: ", trade.ResultRetcode());
    }
 
    //--- Mark original as hedged
