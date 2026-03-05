@@ -264,22 +264,26 @@ void OpenReversalNow(int origIdx, double revPts, double point, double bid, doubl
                                  (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
    }
 
-   //--- Sum ALL open EA lots on the losing side (same direction as triggering position)
-   double totalLosingLot = 0.0;
+   //--- Sum ALL open EA lots on the losing side (same direction as trigger)
+   //    and winning side (opposite direction, already in profit)
+   double totalLosingLot  = 0.0;
+   double totalWinningLot = 0.0;
    int sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
-      if(g_trades[i].direction != dir) continue;
       if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
-      totalLosingLot += PositionGetDouble(POSITION_VOLUME);
+      double vol = PositionGetDouble(POSITION_VOLUME);
+      if(g_trades[i].direction == dir)  totalLosingLot  += vol;
+      else                               totalWinningLot += vol;
    }
 
    //--- New hedge volume:
-   //    hedge × tp = totalLosingLot × (tp + rev)  [cover all losing-side losses to new SL]
-   //               + BaseLotSize × tp             [target profit]
-   //    → hedge = totalLosingLot × (tp + rev) / tp + BaseLotSize
-   //    (when only 1 losing position at baseLot this reduces to baseLot×(2tp+rev)/tp)
-   double adjHedgeLot = NormalizeVolume(totalLosingLot * (tp_pts + revPts) / tp_pts + BaseLotSize);
+   //    (hedgeLot + totalWinningLot) × tp = totalLosingLot × (tp + rev)  [cover losses]
+   //                                      + BaseLotSize × tp             [target profit]
+   //    → hedgeLot = totalLosingLot × (tp + rev) / tp + BaseLotSize - totalWinningLot
+   //    Floor at BaseLotSize to ensure we always add something meaningful
+   double rawHedgeLot = totalLosingLot * (tp_pts + revPts) / tp_pts + BaseLotSize - totalWinningLot;
+   double adjHedgeLot = NormalizeVolume(MathMax(rawHedgeLot, BaseLotSize));
 
    //--- Open new hedge at market
    string revComment = TradeComment + "_" + TAG_REV;
@@ -298,7 +302,8 @@ void OpenReversalNow(int origIdx, double revPts, double point, double bid, doubl
    ulong revTicket = GetPositionTicketByOrder(trade.ResultOrder());
    Print("Reversal opened. Ticket: ", revTicket,
          "  Entry: ", revEntry, "  TP: ", revTP,
-         "  Lot: ", adjHedgeLot, "  TotalLosingLot: ", totalLosingLot);
+         "  Lot: ", adjHedgeLot,
+         "  LosingLot: ", totalLosingLot, "  WinningLot: ", totalWinningLot);
 
    //--- Move SL of ALL open losing-side positions to revTP and mark them hedged
    sz = ArraySize(g_trades);
