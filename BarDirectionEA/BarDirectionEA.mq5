@@ -18,8 +18,6 @@
 
 //--- Input parameters
 input group "=== Trade Settings ==="
-input string TradeSymbol        = "XAUUSD";   // Symbol
-input ENUM_TIMEFRAMES Timeframe = PERIOD_H1;  // Timeframe for bar direction
 input double BaseLotSize        = 0.01;       // Base lot size
 input double TpPoints           = 200.0;      // Take Profit in points
 input double ReversePct         = 50.0;       // Reversal threshold (% of TP points)
@@ -63,19 +61,13 @@ CTrade   trade;
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   if(!SymbolSelect(TradeSymbol, true))
-   {
-      Print("Symbol not available: ", TradeSymbol);
-      return INIT_FAILED;
-   }
-
    trade.SetExpertMagicNumber(MagicNumber);
    trade.SetDeviationInPoints(Slippage);
    trade.SetTypeFilling(ORDER_FILLING_FOK);
 
    ArrayResize(g_trades, 0);
-   Print("BarDirectionEA initialized. Symbol: ", TradeSymbol,
-         "  TF: ", EnumToString(Timeframe),
+   Print("BarDirectionEA initialized. Symbol: ", _Symbol,
+         "  TF: ", EnumToString(_Period),
          "  TpPoints: ", TpPoints,
          "  ReversePct: ", ReversePct);
    return INIT_SUCCEEDED;
@@ -96,7 +88,7 @@ void OnTick()
 {
    //--- 1. Check for new bar entry
    datetime barTimes[];
-   if(CopyTime(TradeSymbol, Timeframe, 0, 2, barTimes) < 2) return;
+   if(CopyTime(_Symbol, _Period, 0, 2, barTimes) < 2) return;
 
    datetime currentBarTime = barTimes[1]; // last CLOSED bar
 
@@ -118,8 +110,8 @@ void OnTick()
 //+------------------------------------------------------------------+
 void OnNewBar(datetime closedBarTime)
 {
-   double open  = iOpen (TradeSymbol, Timeframe, 1);
-   double close = iClose(TradeSymbol, Timeframe, 1);
+   double open  = iOpen (_Symbol, _Period, 1);
+   double close = iClose(_Symbol, _Period, 1);
 
    if(open <= 0 || close <= 0) return;
 
@@ -131,8 +123,8 @@ void OnNewBar(datetime closedBarTime)
       if(!OneTradePerBar || g_lastBuyBar != closedBarTime)
       {
          g_lastBuyBar = closedBarTime;
-         double ask = SymbolInfoDouble(TradeSymbol, SYMBOL_ASK);
-         double tp  = ask + TpPoints * SymbolInfoDouble(TradeSymbol, SYMBOL_POINT);
+         double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         double tp  = ask + TpPoints * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
          if(OpenOriginalTrade(ORDER_TYPE_BUY, ask, tp, closedBarTime))
             Print("BUY opened on bullish bar close. Entry: ", ask, " TP: ", tp);
       }
@@ -143,8 +135,8 @@ void OnNewBar(datetime closedBarTime)
       if(!OneTradePerBar || g_lastSellBar != closedBarTime)
       {
          g_lastSellBar = closedBarTime;
-         double bid = SymbolInfoDouble(TradeSymbol, SYMBOL_BID);
-         double tp  = bid - TpPoints * SymbolInfoDouble(TradeSymbol, SYMBOL_POINT);
+         double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         double tp  = bid - TpPoints * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
          if(OpenOriginalTrade(ORDER_TYPE_SELL, bid, tp, closedBarTime))
             Print("SELL opened on bearish bar close. Entry: ", bid, " TP: ", tp);
       }
@@ -160,9 +152,9 @@ bool OpenOriginalTrade(ENUM_ORDER_TYPE type, double price, double tp, datetime b
    bool ok = false;
 
    if(type == ORDER_TYPE_BUY)
-      ok = trade.Buy(BaseLotSize, TradeSymbol, price, 0, tp, comment);
+      ok = trade.Buy(BaseLotSize, _Symbol, price, 0, tp, comment);
    else
-      ok = trade.Sell(BaseLotSize, TradeSymbol, price, 0, tp, comment);
+      ok = trade.Sell(BaseLotSize, _Symbol, price, 0, tp, comment);
 
    if(!ok)
    {
@@ -195,7 +187,7 @@ bool OpenOriginalTrade(ENUM_ORDER_TYPE type, double price, double tp, datetime b
 //+------------------------------------------------------------------+
 void CheckReversalTriggers()
 {
-   double point        = SymbolInfoDouble(TradeSymbol, SYMBOL_POINT);
+   double point        = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    double reversePoints = TpPoints * ReversePct / 100.0;
 
    for(int i = 0; i < ArraySize(g_trades); i++)
@@ -208,8 +200,8 @@ void CheckReversalTriggers()
 
       double entry = g_trades[i].entryPrice;
       int    dir   = g_trades[i].direction;
-      double bid   = SymbolInfoDouble(TradeSymbol, SYMBOL_BID);
-      double ask   = SymbolInfoDouble(TradeSymbol, SYMBOL_ASK);
+      double bid   = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double ask   = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
       double mid   = (bid + ask) * 0.5;
 
       //--- Calculate adverse excursion from entry
@@ -237,8 +229,8 @@ void OpenReversalTrade(int idx, double revPts, double point)
    double baseLot    = g_trades[idx].baseLot;
    double tp_pts     = g_trades[idx].tpPoints;
 
-   double bid = SymbolInfoDouble(TradeSymbol, SYMBOL_BID);
-   double ask = SymbolInfoDouble(TradeSymbol, SYMBOL_ASK);
+   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
 
    //--- Prices for reversal
    double revEntry, revTP, revSL;
@@ -267,9 +259,9 @@ void OpenReversalTrade(int idx, double revPts, double point)
    string revComment = TradeComment + "_" + TAG_REV;
    bool okRev = false;
    if(dir == 1)
-      okRev = trade.Sell(baseLot, TradeSymbol, revEntry, revSL, revTP, revComment);
+      okRev = trade.Sell(baseLot, _Symbol, revEntry, revSL, revTP, revComment);
    else
-      okRev = trade.Buy (baseLot, TradeSymbol, revEntry, revSL, revTP, revComment);
+      okRev = trade.Buy (baseLot, _Symbol, revEntry, revSL, revTP, revComment);
 
    if(!okRev)
    {
@@ -303,9 +295,9 @@ void OpenReversalTrade(int idx, double revPts, double point)
             string adjComment = TradeComment + "_" + TAG_ORIG + "_adj";
             bool okAdj = false;
             if(dir == 1)
-               okAdj = trade.Buy (extraLot, TradeSymbol, ask, origNewSL, origTP, adjComment);
+               okAdj = trade.Buy (extraLot, _Symbol, ask, origNewSL, origTP, adjComment);
             else
-               okAdj = trade.Sell(extraLot, TradeSymbol, bid, origNewSL, origTP, adjComment);
+               okAdj = trade.Sell(extraLot, _Symbol, bid, origNewSL, origTP, adjComment);
 
             if(okAdj)
                Print("Volume adjustment: added ", extraLot, " lot(s) in original direction. Adj total: ", adjLot);
@@ -369,7 +361,7 @@ ulong GetPositionTicketByOrder(ulong orderTicket)
       ulong t = PositionGetTicket(i);
       if(!PositionSelectByTicket(t)) continue;
       if(PositionGetInteger(POSITION_MAGIC) != MagicNumber) continue;
-      if(PositionGetString(POSITION_SYMBOL) != TradeSymbol) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol)     continue;
 
       //--- Skip already tracked tickets
       bool known = false;
@@ -387,9 +379,9 @@ ulong GetPositionTicketByOrder(ulong orderTicket)
 //+------------------------------------------------------------------+
 double NormalizeVolume(double vol)
 {
-   double minVol  = SymbolInfoDouble(TradeSymbol, SYMBOL_VOLUME_MIN);
-   double maxVol  = SymbolInfoDouble(TradeSymbol, SYMBOL_VOLUME_MAX);
-   double volStep = SymbolInfoDouble(TradeSymbol, SYMBOL_VOLUME_STEP);
+   double minVol  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   double maxVol  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
+   double volStep = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
 
    vol = MathRound(vol / volStep) * volStep;
    vol = MathMax(vol, minVol);
