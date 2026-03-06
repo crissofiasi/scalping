@@ -29,6 +29,7 @@ input string TradeComment       = "BarDir";   // Comment prefix
 input group "=== Risk Settings ==="
 input double MaxLotSize         = 50.0;       // Max lot size cap
 input double MaxTotalOpenLoss   = 0.0;        // Max total floating loss in account currency (0 = disabled)
+input int    CooloffBars        = 2;          // Bars to wait after loss breaker before new entries
 input bool   OneTradePerBar     = true;       // Only one entry per bar (each direction)
 
 //--- Comment tags
@@ -158,10 +159,10 @@ void CheckMaxLossBreaker()
          Print("Breaker close failed for ticket ", t, ": ", trade.ResultRetcode());
    }
 
-   //--- Clear tracking array and start 2-bar cooloff
+   //--- Clear tracking array and start cooloff
    ArrayResize(g_trades, 0);
-   g_cooloffBarsLeft = 2;
-   Print("Cooloff started: entries blocked for 2 bars.");
+   g_cooloffBarsLeft = CooloffBars;
+   Print("Cooloff started: entries blocked for ", CooloffBars, " bars.");
 }
 
 //+------------------------------------------------------------------+
