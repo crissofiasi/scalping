@@ -32,6 +32,32 @@ input double MaxLotSize         = 50.0;       // Max lot size cap
 input double MaxTotalOpenLoss   = 0.0;        // Max total floating loss in account currency (0 = disabled)
 input int    CooloffBars        = 2;          // Bars to wait after loss breaker before new entries
 
+input group "=== Trading Hours (server time) ==="
+input bool H00 = true;  // 00:00
+input bool H01 = true;  // 01:00
+input bool H02 = true;  // 02:00
+input bool H03 = true;  // 03:00
+input bool H04 = true;  // 04:00
+input bool H05 = true;  // 05:00
+input bool H06 = true;  // 06:00
+input bool H07 = true;  // 07:00
+input bool H08 = true;  // 08:00
+input bool H09 = true;  // 09:00
+input bool H10 = true;  // 10:00
+input bool H11 = true;  // 11:00
+input bool H12 = true;  // 12:00
+input bool H13 = true;  // 13:00
+input bool H14 = true;  // 14:00
+input bool H15 = true;  // 15:00
+input bool H16 = true;  // 16:00
+input bool H17 = true;  // 17:00
+input bool H18 = true;  // 18:00
+input bool H19 = true;  // 19:00
+input bool H20 = true;  // 20:00
+input bool H21 = true;  // 21:00
+input bool H22 = true;  // 22:00
+input bool H23 = true;  // 23:00
+
 //--- Comment tags
 #define TAG_ORIG  "ORIG"
 #define TAG_REV   "REV"
@@ -113,7 +139,12 @@ void OnTick()
       }
 
       if(CountOpenEATrades() == 0)
-         OnNewBar(currentBarTime);
+      {
+         if(IsTradingHourAllowed())
+            OnNewBar(currentBarTime);
+         else
+            Print("New bar skipped - outside trading hours (H", TimeHour(TimeCurrent()), ")");
+      }
       else
          Print("New bar ignored - ", CountOpenEATrades(), " EA trade(s) still open.");
    }
@@ -161,6 +192,25 @@ void CheckMaxLossBreaker()
    ArrayResize(g_trades, 0);
    g_cooloffBarsLeft = CooloffBars;
    Print("Cooloff started: entries blocked for ", CooloffBars, " bars.");
+}
+
+//+------------------------------------------------------------------+
+//| Return true if current server hour is enabled for trading        |
+//+------------------------------------------------------------------+
+bool IsTradingHourAllowed()
+{
+   switch(TimeHour(TimeCurrent()))
+   {
+      case  0: return H00; case  1: return H01; case  2: return H02;
+      case  3: return H03; case  4: return H04; case  5: return H05;
+      case  6: return H06; case  7: return H07; case  8: return H08;
+      case  9: return H09; case 10: return H10; case 11: return H11;
+      case 12: return H12; case 13: return H13; case 14: return H14;
+      case 15: return H15; case 16: return H16; case 17: return H17;
+      case 18: return H18; case 19: return H19; case 20: return H20;
+      case 21: return H21; case 22: return H22; case 23: return H23;
+   }
+   return false;
 }
 
 //+------------------------------------------------------------------+
