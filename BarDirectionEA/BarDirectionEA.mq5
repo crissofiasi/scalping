@@ -145,7 +145,10 @@ void OnTick()
          if(IsTradingHourAllowed())
             OnNewBar(currentBarTime);
          else
-            Print("New bar skipped - outside trading hours (H", TimeHour(TimeCurrent()), ")");
+         {
+            MqlDateTime _dt; TimeToStruct(TimeCurrent(), _dt);
+            Print("New bar skipped - outside trading hours (H", _dt.hour, ")");
+         }
       }
       else
          Print("New bar ignored – ", CountOpenEATrades(), " EA trade(s) still open.");
@@ -201,7 +204,9 @@ void CheckMaxLossBreaker()
 //+------------------------------------------------------------------+
 bool IsTradingHourAllowed()
 {
-   switch(TimeHour(TimeCurrent()))
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   switch(dt.hour)
    {
       case  0: return H00; case  1: return H01; case  2: return H02;
       case  3: return H03; case  4: return H04; case  5: return H05;
