@@ -29,7 +29,6 @@ input string TradeComment       = "BarDirC";  // Comment prefix
 
 input group "=== Risk Settings ==="
 input double MaxLotSize         = 50.0;       // Max lot size cap
-input bool   OneTradePerBar     = true;       // Only one entry per bar (each direction)
 
 //--- Comment tags
 #define TAG_ORIG  "ORIG"
@@ -53,8 +52,6 @@ TradeRec g_trades[];
 
 //--- Bar tracking
 datetime g_lastBarTime  = 0;
-datetime g_lastBuyBar   = 0;
-datetime g_lastSellBar  = 0;
 
 CTrade   trade;
 
@@ -125,26 +122,18 @@ void OnNewBar(datetime closedBarTime)
 
    if(bullish)
    {
-      if(!OneTradePerBar || g_lastBuyBar != closedBarTime)
-      {
-         g_lastBuyBar = closedBarTime;
-         double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-         double tp  = ask + TpPoints * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-         if(OpenOriginalTrade(ORDER_TYPE_BUY, ask, tp, closedBarTime))
-            Print("BUY opened on bullish bar close. Entry: ", ask, " TP: ", tp);
-      }
+      double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double tp  = ask + TpPoints * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+      if(OpenOriginalTrade(ORDER_TYPE_BUY, ask, tp, closedBarTime))
+         Print("BUY opened on bullish bar close. Entry: ", ask, " TP: ", tp);
    }
 
    if(bearish)
    {
-      if(!OneTradePerBar || g_lastSellBar != closedBarTime)
-      {
-         g_lastSellBar = closedBarTime;
-         double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         double tp  = bid - TpPoints * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-         if(OpenOriginalTrade(ORDER_TYPE_SELL, bid, tp, closedBarTime))
-            Print("SELL opened on bearish bar close. Entry: ", bid, " TP: ", tp);
-      }
+      double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double tp  = bid - TpPoints * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+      if(OpenOriginalTrade(ORDER_TYPE_SELL, bid, tp, closedBarTime))
+         Print("SELL opened on bearish bar close. Entry: ", bid, " TP: ", tp);
    }
 }
 
