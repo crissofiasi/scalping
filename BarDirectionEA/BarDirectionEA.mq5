@@ -28,6 +28,7 @@ input string TradeComment       = "BarDir";   // Comment prefix
 
 input group "=== Risk Settings ==="
 input double MaxLotSize         = 50.0;       // Max lot size cap
+input double MaxTotalOpenLoss   = 0.0;        // Max total floating loss in account currency (0 = disabled)
 input bool   OneTradePerBar     = true;       // Only one entry per bar (each direction)
 
 //--- Comment tags
@@ -54,6 +55,7 @@ TradeRec g_trades[];
 datetime g_lastBarTime  = 0;
 datetime g_lastBuyBar   = 0;
 datetime g_lastSellBar  = 0;
+int      g_cooloffBarsLeft = 0;   // bars remaining before new entries allowed after loss breaker
 
 CTrade   trade;
 
@@ -87,10 +89,13 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   //--- 1. Check reversal thresholds on every tick
+   //--- 1. Check max loss breaker (closes all + triggers cooloff)
+   CheckMaxLossBreaker();
+
+   //--- 2. Check reversal thresholds on every tick
    CheckReversalTriggers();
 
-   //--- 2. Check for new bar entry (only when no open EA trades)
+   //--- 3. Check for new bar entry (only when no open EA trades)
    datetime barTimes[];
    if(CopyTime(_Symbol, _Period, 0, 2, barTimes) < 2) return;
 
@@ -99,14 +104,64 @@ void OnTick()
    if(currentBarTime != g_lastBarTime)
    {
       g_lastBarTime = currentBarTime;
+
+      //--- Count down cooloff on each new bar
+      if(g_cooloffBarsLeft > 0)
+      {
+         g_cooloffBarsLeft--;
+         Print("Cooloff active: ", g_cooloffBarsLeft, " bar(s) remaining.");
+         return;
+      }
+
       if(CountOpenEATrades() == 0)
          OnNewBar(currentBarTime);
       else
          Print("New bar ignored – ", CountOpenEATrades(), " EA trade(s) still open.");
    }
 
-   //--- 3. Clean stale records
+   //--- 4. Clean stale records
    PruneClosedTrades();
+}
+
+//+------------------------------------------------------------------+
+//| Close all EA positions and start cooloff if loss limit exceeded  |
+//+------------------------------------------------------------------+
+void CheckMaxLossBreaker()
+{
+   if(MaxTotalOpenLoss <= 0.0) return;   // disabled
+
+   double totalFloatingPL = 0.0;
+   int total = PositionsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      ulong t = PositionGetTicket(i);
+      if(!PositionSelectByTicket(t))                              continue;
+      if(PositionGetInteger(POSITION_MAGIC) != MagicNumber)       continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol)           continue;
+      totalFloatingPL += PositionGetDouble(POSITION_PROFIT);
+   }
+
+   if(totalFloatingPL >= -MaxTotalOpenLoss) return;   // still within limit
+
+   Print("MAX LOSS BREAKER: floating P&L ", totalFloatingPL,
+         " exceeded limit -", MaxTotalOpenLoss, ". Closing all positions.");
+
+   //--- Close all EA positions
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong t = PositionGetTicket(i);
+      if(!PositionSelectByTicket(t))                              continue;
+      if(PositionGetInteger(POSITION_MAGIC) != MagicNumber)       continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol)           continue;
+
+      if(!trade.PositionClose(t, Slippage))
+         Print("Breaker close failed for ticket ", t, ": ", trade.ResultRetcode());
+   }
+
+   //--- Clear tracking array and start 2-bar cooloff
+   ArrayResize(g_trades, 0);
+   g_cooloffBarsLeft = 2;
+   Print("Cooloff started: entries blocked for 2 bars.");
 }
 
 //+------------------------------------------------------------------+
