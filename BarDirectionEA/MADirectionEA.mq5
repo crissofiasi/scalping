@@ -13,10 +13,13 @@
 //|  6. Dynamic TP = max(max bar H-L over DynTpBars, TpMinPoints)   |
 //|  7. Weekend filter: inhibit new trades / close open trades       |
 //|     N bars before weekend session end                            |
+//|  8. Scale-in: on same-dir bar signal, average into open position |
+//|     if price is >= MinProfitPoints adverse from nearest entry;   |
+//|     volume sized to cover floating loss at new dynamic TP        |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, Cris Trading"
 #property link      ""
-#property version   "1.00"
+#property version   "1.10"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -40,8 +43,11 @@ input int    DynTpBars      = 10;      // Lookback bars for dynamic TP
 //   TP = max( max(High-Low) over DynTpBars bars,  TpMinPoints )  [in points]
 
 input group "=== Early Close & Protection ==="
+input bool   EnableEarlyClose      = true;  // Close profitable trades on bar change
+input bool   EnableEarlyProtection = true;  // Move SL to lock min profit when near TP
+input bool   EnableScaleIn         = true;  // Scale-in to same-dir position when price moves against
 input double EarlyTpPct      = 50.0;  // Price reaches X% of TP → activate SL lock
-input double MinProfitPoints = 20.0;  // Protective SL offset from entry (points)
+input double MinProfitPoints = 20.0;  // Protective SL offset / scale-in gap (points)
 
 input group "=== Risk Settings ==="
 input double MaxLotSize       = 50.0; // Max lot size cap
@@ -65,6 +71,7 @@ input bool H20=true;  input bool H21=true;  input bool H22=true;  input bool H23
 //--- Constants
 #define TAG_ORIG "ORIG"
 #define TAG_REV  "REV"
+#define TAG_AVG  "AVG"
 
 //--- Trade record --------------------------------------------------
 struct TradeRec
@@ -78,6 +85,7 @@ struct TradeRec
    ulong    hedgeTicket;    // ticket of hedge position (0 = none)
    datetime barTime;
    bool     isReversal;
+   bool     isScaleIn;      // opened as a scale-in (averaging) trade?
    bool     earlyProtected; // SL already locked to min-profit level?
 };
 
@@ -162,7 +170,8 @@ void OnTick()
    CheckMaxLossBreaker();
 
    //--- 2. Per-tick early protection (move SL to lock in min profit)
-   CheckEarlyProtection();
+   if(EnableEarlyProtection)
+      CheckEarlyProtection();
 
    //--- 3. Check reversal thresholds
    CheckReversalTriggers();
@@ -186,7 +195,8 @@ void OnTick()
       else
       {
          //--- 4b. Early bar-close: close profitable trades on bar change
-         CloseAllProfitableTrades();
+         if(EnableEarlyClose)
+            CloseAllProfitableTrades();
       }
 
       //--- 4c. Cooloff countdown
@@ -195,7 +205,7 @@ void OnTick()
          g_cooloffBarsLeft--;
          Print("Cooloff active: ", g_cooloffBarsLeft, " bar(s) remaining.");
       }
-      else if(CountOpenEATrades() == 0)
+      else
       {
          //--- 4d. Weekend entry inhibit
          if(WeekendInhibitBars > 0 && IsNearWeekend(WeekendInhibitBars))
@@ -204,7 +214,7 @@ void OnTick()
          }
          else if(IsTradingHourAllowed())
          {
-            OnNewBar(currentBarTime);
+            OnNewBar(currentBarTime);   // handles fresh entries and scale-in
          }
          else
          {
@@ -212,8 +222,6 @@ void OnTick()
             Print("New bar skipped – outside trading hours (H", _dt.hour, ")");
          }
       }
-      else
-         Print("New bar – ", CountOpenEATrades(), " EA trade(s) still open, skipping entry.");
    }
 
    //--- 5. Clean stale records
@@ -244,17 +252,30 @@ void OnNewBar(datetime closedBarTime)
 
    double dynTp = CalcDynamicTP();
 
+   double point  = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+
    if(buySignal)
    {
       if(!OneTradePerBar || g_lastBuyBar != closedBarTime)
       {
          g_lastBuyBar = closedBarTime;
-         double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-         double tp  = ask + dynTp * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-         tp = NormalizeDouble(tp, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
-         if(OpenOriginalTrade(ORDER_TYPE_BUY, ask, tp, dynTp, closedBarTime))
-            Print("BUY opened. Entry: ", ask, " TP: ", tp, " DynTpPts: ", dynTp,
-                  " MA: ", maOnPrev, " PrevClose: ", prevClose);
+         double ask      = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         int    openBuys = CountOpenEATradesInDir(1);
+
+         if(openBuys == 0)
+         {
+            //--- Fresh BUY entry (no existing same-dir trades)
+            double tp = NormalizeDouble(ask + dynTp * point, digits);
+            if(OpenOriginalTrade(ORDER_TYPE_BUY, ask, tp, dynTp, closedBarTime))
+               Print("BUY opened. Entry: ", ask, " TP: ", tp, " DynTpPts: ", dynTp,
+                     " MA: ", maOnPrev, " PrevClose: ", prevClose);
+         }
+         else if(EnableScaleIn)
+         {
+            //--- Scale-in into existing BUY trades
+            TryScaleIn(1, ask, dynTp, closedBarTime, maOnPrev, prevClose);
+         }
       }
    }
 
@@ -263,12 +284,22 @@ void OnNewBar(datetime closedBarTime)
       if(!OneTradePerBar || g_lastSellBar != closedBarTime)
       {
          g_lastSellBar = closedBarTime;
-         double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         double tp  = bid - dynTp * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-         tp = NormalizeDouble(tp, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
-         if(OpenOriginalTrade(ORDER_TYPE_SELL, bid, tp, dynTp, closedBarTime))
-            Print("SELL opened. Entry: ", bid, " TP: ", tp, " DynTpPts: ", dynTp,
-                  " MA: ", maOnPrev, " PrevClose: ", prevClose);
+         double bid       = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         int    openSells = CountOpenEATradesInDir(-1);
+
+         if(openSells == 0)
+         {
+            //--- Fresh SELL entry (no existing same-dir trades)
+            double tp = NormalizeDouble(bid - dynTp * point, digits);
+            if(OpenOriginalTrade(ORDER_TYPE_SELL, bid, tp, dynTp, closedBarTime))
+               Print("SELL opened. Entry: ", bid, " TP: ", tp, " DynTpPts: ", dynTp,
+                     " MA: ", maOnPrev, " PrevClose: ", prevClose);
+         }
+         else if(EnableScaleIn)
+         {
+            //--- Scale-in into existing SELL trades
+            TryScaleIn(-1, bid, dynTp, closedBarTime, maOnPrev, prevClose);
+         }
       }
    }
 }
@@ -306,12 +337,138 @@ bool OpenOriginalTrade(ENUM_ORDER_TYPE type, double price, double tp,
    rec.hedgeTicket   = 0;
    rec.barTime       = barTime;
    rec.isReversal    = false;
+   rec.isScaleIn     = false;
    rec.earlyProtected = false;
 
    int sz = ArraySize(g_trades);
    ArrayResize(g_trades, sz + 1);
    g_trades[sz] = rec;
    return true;
+}
+
+//+------------------------------------------------------------------+
+//| Count open EA trades on this symbol in a given direction         |
+//| dir: 1=BUY, -1=SELL                                              |
+//+------------------------------------------------------------------+
+int CountOpenEATradesInDir(int dir)
+{
+   int count = 0;
+   int sz    = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(g_trades[i].direction != dir) continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      count++;
+   }
+   return count;
+}
+
+//+------------------------------------------------------------------+
+//| Attempt a scale-in trade in direction dir at execPrice           |
+//| Volume is sized so its TP profit covers current floating loss    |
+//+------------------------------------------------------------------+
+void TryScaleIn(int dir, double execPrice, double dynTp,
+                datetime barTime, double maVal, double prevClose)
+{
+   double point  = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+
+   //--- Find the entry nearest to current price among open same-dir positions
+   double nearestEntry = -1.0;
+   double minDist      = DBL_MAX;
+   int sz = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(g_trades[i].direction != dir)                continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      double dist = MathAbs(g_trades[i].entryPrice - execPrice);
+      if(dist < minDist) { minDist = dist; nearestEntry = g_trades[i].entryPrice; }
+   }
+
+   if(nearestEntry < 0.0) return;
+
+   //--- Gate: price must be at least MinProfitPoints adverse from nearest entry
+   bool condOk = false;
+   if(dir == 1)   condOk = (execPrice <= nearestEntry - MinProfitPoints * point);
+   else            condOk = (execPrice >= nearestEntry + MinProfitPoints * point);
+
+   if(!condOk)
+   {
+      Print("ScaleIn skipped: gap ", minDist / point, " pts < MinProfitPoints ",
+            MinProfitPoints, " from nearest entry ", nearestEntry);
+      return;
+   }
+
+   //--- Sum current floating loss of all open same-dir EA trades
+   double floatingLoss = 0.0;
+   for(int i = 0; i < sz; i++)
+   {
+      if(g_trades[i].direction != dir)                continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      floatingLoss += PositionGetDouble(POSITION_PROFIT);
+   }
+
+   //--- Volume so that: newVol * dynTp * ptValPerLot >= |floatingLoss| + BaseLot profit
+   double tickVal     = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tickSz      = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+   double ptValPerLot = (tickSz > 0.0 && tickVal > 0.0)
+                        ? tickVal / tickSz * point
+                        : 0.0;
+
+   double rawVol = BaseLotSize;
+   if(ptValPerLot > 0.0 && floatingLoss < 0.0)
+      rawVol = MathAbs(floatingLoss) / (dynTp * ptValPerLot) + BaseLotSize;
+
+   if(rawVol > MaxLotSize)
+   {
+      Print("ScaleIn STOPPED: required lot ", rawVol,
+            " exceeds MaxLotSize ", MaxLotSize);
+      return;
+   }
+
+   double adjVol = NormalizeVolume(MathMax(rawVol, BaseLotSize));
+
+   //--- Place the scale-in order
+   double tp = (dir == 1)
+               ? NormalizeDouble(execPrice + dynTp * point, digits)
+               : NormalizeDouble(execPrice - dynTp * point, digits);
+
+   string comment = TradeComment + "_" + TAG_AVG;
+   bool   ok      = (dir == 1)
+                    ? trade.Buy (adjVol, _Symbol, execPrice, 0, tp, comment)
+                    : trade.Sell(adjVol, _Symbol, execPrice, 0, tp, comment);
+
+   if(!ok)
+   {
+      Print("ScaleIn order failed: ", trade.ResultRetcode(),
+            " – ", trade.ResultRetcodeDescription());
+      return;
+   }
+
+   ulong posTicket = GetPositionTicketByOrder(trade.ResultOrder());
+
+   TradeRec rec;
+   rec.ticket         = posTicket;
+   rec.direction      = dir;
+   rec.entryPrice     = execPrice;
+   rec.tpPoints       = dynTp;
+   rec.baseLot        = BaseLotSize;
+   rec.hedged         = false;
+   rec.hedgeTicket    = 0;
+   rec.barTime        = barTime;
+   rec.isReversal     = false;
+   rec.isScaleIn      = true;
+   rec.earlyProtected = false;
+
+   int cnt = ArraySize(g_trades);
+   ArrayResize(g_trades, cnt + 1);
+   g_trades[cnt] = rec;
+
+   Print("ScaleIn ", (dir==1?"BUY":"SELL"), " opened. Ticket: ", posTicket,
+         "  Entry: ", execPrice, "  TP: ", tp, "  Lot: ", adjVol,
+         "  FloatLoss: ", floatingLoss,
+         "  NearestEntry: ", nearestEntry,
+         "  MA: ", maVal, "  PrevClose: ", prevClose);
 }
 
 //+------------------------------------------------------------------+
@@ -539,6 +696,7 @@ void OpenReversalNow(int origIdx, double point, double bid, double ask)
    revRec.hedgeTicket    = 0;
    revRec.barTime        = g_trades[origIdx].barTime;
    revRec.isReversal     = true;
+   revRec.isScaleIn      = false;
    revRec.earlyProtected = false;
 
    sz = ArraySize(g_trades);
@@ -576,8 +734,9 @@ void RebuildFromOpenPositions()
          tpPts = MathAbs(posTp - entry) / point;
       if(tpPts < 1.0) tpPts = TpMinPoints;
 
-      //--- Determine reversal from comment
+      //--- Determine entry type from comment
       bool isRev = StringFind(comm, TAG_REV) >= 0;
+      bool isSci = StringFind(comm, TAG_AVG) >= 0;
 
       //--- If SL is already set, assume it was already hedged
       bool wasHedged = (sl > 0);
@@ -592,6 +751,7 @@ void RebuildFromOpenPositions()
       rec.hedgeTicket    = 0;   // not recoverable; OK as hedge re-triggers if needed
       rec.barTime        = (datetime)PositionGetInteger(POSITION_TIME);
       rec.isReversal     = isRev;
+      rec.isScaleIn      = isSci;
       rec.earlyProtected = wasHedged; // if already hedged treat as protected too
 
       int sz = ArraySize(g_trades);
