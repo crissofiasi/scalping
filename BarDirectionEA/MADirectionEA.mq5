@@ -9,7 +9,8 @@
 //|     move SL to entry + MinProfitPoints (locks in profit)         |
 //|  4. EA reset recovery: on init, scan open positions and rebuild  |
 //|     tracking state so hedging logic resumes correctly            |
-//|  5. Reversal threshold in points (not % of TP)                  |
+//|  5. Reversal: triggered when prev bar closes on opposite side of  |
+//|     MA from the open position (BUY reverses if close < MA, etc.) |
 //|  6. Dynamic TP = max(max bar H-L over DynTpBars, TpMinPoints)   |
 //|  7. Weekend filter: inhibit new trades / close open trades       |
 //|     N bars before weekend session end                            |
@@ -19,7 +20,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, Cris Trading"
 #property link      ""
-#property version   "1.10"
+#property version   "1.20"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -33,7 +34,6 @@ input ENUM_APPLIED_PRICE MA_Price = PRICE_CLOSE; // MA applied price
 input group "=== Trade Settings ==="
 input double BaseLotSize    = 0.01;    // Base lot size
 input double TpMinPoints    = 200.0;   // Min TP in points (fixed floor)
-input double ReversePoints  = 100.0;   // Reversal threshold in points
 input long   MagicNumber    = 77778;   // Magic number
 input int    Slippage       = 50;      // Slippage in points
 input string TradeComment   = "MADir"; // Comment prefix
@@ -146,7 +146,7 @@ int OnInit()
          "  TF: ", EnumToString(_Period),
          "  MA: ", MA_Period, " ", EnumToString(MA_Method),
          "  TpMinPoints: ", TpMinPoints,
-         "  ReversePoints: ", ReversePoints,
+         "  Reversal: MA-cross on bar close",
          "  Recovered: ", ArraySize(g_trades), " positions");
    return INIT_SUCCEEDED;
 }
@@ -173,9 +173,7 @@ void OnTick()
    if(EnableEarlyProtection)
       CheckEarlyProtection();
 
-   //--- 3. Check reversal thresholds
-   CheckReversalTriggers();
-
+   //--- 3. New-bar logic (reversal check is now inside OnNewBar)
    //--- 4. New-bar logic
    datetime barTimes[];
    if(CopyTime(_Symbol, _Period, 0, 2, barTimes) < 2) return;
@@ -249,6 +247,9 @@ void OnNewBar(datetime closedBarTime)
 
    bool buySignal  = prevClose > maOnPrev;   // close above MA → buy
    bool sellSignal = prevClose < maOnPrev;   // close below MA → sell
+
+   //--- MA-cross reversal check (fires before new entries)
+   CheckMAReversalOnBar(prevClose, maOnPrev);
 
    double dynTp = CalcDynamicTP();
 
@@ -567,76 +568,86 @@ void CheckEarlyProtection()
 }
 
 //+------------------------------------------------------------------+
-//| Check reversal thresholds on every tick                          |
+//| Bar-close MA-cross reversal check                                |
+//| Called once per new bar; reverses all unhedged positions whose   |
+//| direction conflicts with the freshly closed bar's MA signal      |
 //+------------------------------------------------------------------+
-void CheckReversalTriggers()
+void CheckMAReversalOnBar(double prevClose, double maOnPrev)
 {
    double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    double bid   = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double ask   = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
 
-   int sz = ArraySize(g_trades);
-   for(int i = 0; i < sz; i++)
+   //--- Determine which direction is now "against the MA"
+   //    close < MA  → BUY positions should reverse (price crossed below)
+   //    close > MA  → SELL positions should reverse (price crossed above)
+   bool reverseBuys  = (prevClose < maOnPrev);  // bar closed below MA
+   bool reverseSells = (prevClose > maOnPrev);  // bar closed above MA
+
+   if(!reverseBuys && !reverseSells) return;    // doji on MA – no reversal
+
+   //--- Check if any unhedged same-direction trades exist
+   if(reverseBuys  && CountOpenEATradesInDir(1)  > 0)
    {
-      if(g_trades[i].hedged) continue;
-      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
-
-      double entry = g_trades[i].entryPrice;
-      int    dir   = g_trades[i].direction;
-
-      bool touched = false;
-      if(dir == 1)   touched = (bid <= entry - ReversePoints * point); // BUY gone against
-      else            touched = (ask >= entry + ReversePoints * point); // SELL gone against
-
-      if(!touched) continue;
-
-      Print("Reversal triggered for ticket ", g_trades[i].ticket,
-            "  Entry: ", entry, "  Dir: ", dir,
-            "  RevPts: ", ReversePoints);
-
-      OpenReversalNow(i, point, bid, ask);
-
-      sz = ArraySize(g_trades);   // refresh after possible resize
+      Print("MA cross: bar closed below MA (", prevClose, " < ", maOnPrev,
+            "). Reversing open BUY trades.");
+      OpenReversalNow(1, point, bid, ask);
+   }
+   if(reverseSells && CountOpenEATradesInDir(-1) > 0)
+   {
+      Print("MA cross: bar closed above MA (", prevClose, " > ", maOnPrev,
+            "). Reversing open SELL trades.");
+      OpenReversalNow(-1, point, bid, ask);
    }
 }
 
 //+------------------------------------------------------------------+
 //| Open hedging reversal and adjust existing positions              |
+//| dir: direction of positions being reversed (1=BUY, -1=SELL)     |
+//| Lot sized so hedge TP profit covers actual floating loss of all  |
+//| same-dir losing trades (computed from real per-trade distances)  |
 //+------------------------------------------------------------------+
-void OpenReversalNow(int origIdx, double point, double bid, double ask)
+void OpenReversalNow(int dir, double point, double bid, double ask)
 {
-   int    dir    = g_trades[origIdx].direction;
-   double tp_pts = g_trades[origIdx].tpPoints;
+   double tp_pts = CalcDynamicTP();   // use current dynamic TP for the hedge
 
    double revEntry, revTP;
    int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
-   if(dir == 1)   // BUY triggered → hedge SELL
+   if(dir == 1)   // BUY positions reversed → open SELL hedge
    {
       revEntry = bid;
       revTP    = NormalizeDouble(revEntry - tp_pts * point, digits);
    }
-   else           // SELL triggered → hedge BUY
+   else           // SELL positions reversed → open BUY hedge
    {
       revEntry = ask;
       revTP    = NormalizeDouble(revEntry + tp_pts * point, digits);
    }
 
-   //--- Sum lots on both sides across all tracked positions
-   double totalLosingLot  = 0.0;
+   //--- Sum lots; compute weighted hedge need from actual per-trade distances
+   //    Formula derivation: at revTP the hedge earns hedgeLot * tp_pts * ptVal;
+   //    each losing trade i loses tradeLot_i * (dist_i + tp_pts) * ptVal
+   //    where dist_i = |entry_i - revEntry| / point.
+   //    Solve for hedgeLot = sum(tradeLot_i*(tp_pts+dist_i)/tp_pts) + BaseLot - winLot
+   double weightedLosing  = 0.0;
    double totalWinningLot = 0.0;
    int sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
       if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
       double vol = PositionGetDouble(POSITION_VOLUME);
-      if(g_trades[i].direction == dir)   totalLosingLot  += vol;
-      else                                totalWinningLot += vol;
+      if(g_trades[i].direction == dir)
+      {
+         double dist = MathAbs(g_trades[i].entryPrice - revEntry) / point;
+         weightedLosing += vol * (tp_pts + dist) / tp_pts;
+      }
+      else
+         totalWinningLot += vol;
    }
 
-   //--- Hedge lot formula: cover losses + target BaseLotSize profit
-   double rawHedgeLot = totalLosingLot * (tp_pts + ReversePoints) / tp_pts
-                        + BaseLotSize - totalWinningLot;
+   //--- Hedge lot
+   double rawHedgeLot = weightedLosing + BaseLotSize - totalWinningLot;
 
    if(rawHedgeLot > MaxLotSize)
    {
@@ -665,7 +676,7 @@ void OpenReversalNow(int origIdx, double point, double bid, double ask)
    Print("Reversal opened. Ticket: ", revTicket,
          "  Entry: ", revEntry, "  TP: ", revTP,
          "  Lot: ", adjHedgeLot,
-         "  LosingLot: ", totalLosingLot, "  WinningLot: ", totalWinningLot);
+         "  WeightedLosing: ", weightedLosing, "  WinningLot: ", totalWinningLot);
 
    //--- Move SL of all losing-side positions to hedge TP; mark hedged
    sz = ArraySize(g_trades);
@@ -694,7 +705,7 @@ void OpenReversalNow(int origIdx, double point, double bid, double ask)
    revRec.baseLot        = BaseLotSize;
    revRec.hedged         = false;
    revRec.hedgeTicket    = 0;
-   revRec.barTime        = g_trades[origIdx].barTime;
+   revRec.barTime        = TimeCurrent();
    revRec.isReversal     = true;
    revRec.isScaleIn      = false;
    revRec.earlyProtected = false;
