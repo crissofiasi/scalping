@@ -4,7 +4,8 @@
 //|                                                                  |
 //|  Strategy:                                                       |
 //|  1. MA-based entry: buy if prev bar closes above MA, sell below  |
-//|  2. Early close: on bar change, close profitable EA trades       |
+  |  2. Early close: on bar change, close profitable ORIG trades      |
+  |     (suppressed while any REV position is open)                  |
 //|  3. Early protection: when price reaches EarlyTpPct% of TP,     |
 //|     move SL to entry + MinProfitPoints (locks in profit)         |
 //|  4. EA reset recovery: on init, scan open positions and rebuild  |
@@ -473,10 +474,21 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
 }
 
 //+------------------------------------------------------------------+
-//| On bar change: close any EA trade that has positive P&L          |
+//| On bar change: close profitable ORIG trades on bar change        |
+//| Only active when no reversal (REV) positions are open            |
 //+------------------------------------------------------------------+
 void CloseAllProfitableTrades()
 {
+   //--- Suppress early close while any reversal position is still open
+   int sz = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(!g_trades[i].isReversal) continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      Print("EarlyClose suppressed: reversal position ", g_trades[i].ticket, " is open.");
+      return;
+   }
+
    int total = PositionsTotal();
    for(int i = total - 1; i >= 0; i--)
    {
@@ -484,6 +496,10 @@ void CloseAllProfitableTrades()
       if(!PositionSelectByTicket(t))                              continue;
       if(PositionGetInteger(POSITION_MAGIC) != MagicNumber)       continue;
       if(PositionGetString(POSITION_SYMBOL) != _Symbol)           continue;
+
+      //--- Only close ORIG trades; skip REV and AVG positions
+      string comm = PositionGetString(POSITION_COMMENT);
+      if(StringFind(comm, TAG_ORIG) < 0) continue;
 
       double profit = PositionGetDouble(POSITION_PROFIT)
                     + PositionGetDouble(POSITION_SWAP);
@@ -518,15 +534,25 @@ void CloseAllEATrades()
 
 //+------------------------------------------------------------------+
 //| Per-tick: move SL to min-profit once price reaches EarlyTpPct%  |
+//| Suppressed while any reversal (REV) position is open             |
 //+------------------------------------------------------------------+
 void CheckEarlyProtection()
 {
+   //--- Suppress while any reversal position is still open
+   int sz = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(!g_trades[i].isReversal) continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      return;   // reversal active – leave all SLs untouched
+   }
+
    double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    double bid   = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double ask   = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
-   int sz = ArraySize(g_trades);
+   sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
       if(g_trades[i].earlyProtected)    continue;
