@@ -33,7 +33,8 @@ input ENUM_MA_METHOD   MA_Method  = MODE_EMA;    // MA method (EMA, SMA, SMMA, L
 input ENUM_APPLIED_PRICE MA_Price = PRICE_CLOSE; // MA applied price
 
 input group "=== Trade Settings ==="
-input double BaseLotSize    = 0.01;    // Base lot size
+input double BaseLotSize    = 0.01;    // Base (minimum) lot size
+input double BaseEquity     = 0.0;     // Equity reference for lot scaling (0 = off, use BaseLotSize flat)
 input double TpMinPoints    = 200.0;   // Min TP in points (fixed floor)
 input long   MagicNumber    = 77778;   // Magic number
 input int    Slippage       = 50;      // Slippage in points
@@ -100,6 +101,18 @@ int      g_cooloffBarsLeft = 0;
 int      g_maHandle        = INVALID_HANDLE;
 
 CTrade trade;
+
+//+------------------------------------------------------------------+
+//| Lot size scaled proportionally to current equity vs BaseEquity  |
+//| BaseLotSize is always the minimum floor                          |
+//+------------------------------------------------------------------+
+double CalcScaledLot()
+{
+   if(BaseEquity <= 0.0) return BaseLotSize;   // scaling disabled
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double scaled = BaseLotSize * equity / BaseEquity;
+   return NormalizeVolume(MathMax(scaled, BaseLotSize));
+}
 
 //+------------------------------------------------------------------+
 //| Calculate dynamic TP in points for current market condition      |
@@ -313,12 +326,13 @@ bool OpenOriginalTrade(ENUM_ORDER_TYPE type, double price, double tp,
                        double tpPts, datetime barTime)
 {
    string comment = TradeComment + "_" + TAG_ORIG;
+   double lot = CalcScaledLot();
    bool ok = false;
 
    if(type == ORDER_TYPE_BUY)
-      ok = trade.Buy(BaseLotSize, _Symbol, price, 0, tp, comment);
+      ok = trade.Buy(lot, _Symbol, price, 0, tp, comment);
    else
-      ok = trade.Sell(BaseLotSize, _Symbol, price, 0, tp, comment);
+      ok = trade.Sell(lot, _Symbol, price, 0, tp, comment);
 
    if(!ok)
    {
@@ -334,7 +348,7 @@ bool OpenOriginalTrade(ENUM_ORDER_TYPE type, double price, double tp,
    rec.direction     = (type == ORDER_TYPE_BUY) ? 1 : -1;
    rec.entryPrice    = price;
    rec.tpPoints      = tpPts;
-   rec.baseLot       = BaseLotSize;
+   rec.baseLot       = lot;
    rec.hedged        = false;
    rec.hedgeTicket   = 0;
    rec.barTime       = barTime;
@@ -410,16 +424,17 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
       floatingLoss += PositionGetDouble(POSITION_PROFIT);
    }
 
-   //--- Volume so that: newVol * dynTp * ptValPerLot >= |floatingLoss| + BaseLot profit
+   //--- Volume so that: newVol * dynTp * ptValPerLot >= |floatingLoss| + scaledLot profit
    double tickVal     = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
    double tickSz      = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
    double ptValPerLot = (tickSz > 0.0 && tickVal > 0.0)
                         ? tickVal / tickSz * point
                         : 0.0;
 
-   double rawVol = BaseLotSize;
+   double scaledLot = CalcScaledLot();
+   double rawVol = scaledLot;
    if(ptValPerLot > 0.0 && floatingLoss < 0.0)
-      rawVol = MathAbs(floatingLoss) / (dynTp * ptValPerLot) + BaseLotSize;
+      rawVol = MathAbs(floatingLoss) / (dynTp * ptValPerLot) + scaledLot;
 
    if(rawVol > MaxLotSize)
    {
@@ -428,7 +443,7 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
       return;
    }
 
-   double adjVol = NormalizeVolume(MathMax(rawVol, BaseLotSize));
+   double adjVol = NormalizeVolume(MathMax(rawVol, BaseLotSize));  // BaseLotSize = absolute min
 
    //--- Place the scale-in order
    double tp = (dir == 1)
@@ -454,7 +469,7 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
    rec.direction      = dir;
    rec.entryPrice     = execPrice;
    rec.tpPoints       = dynTp;
-   rec.baseLot        = BaseLotSize;
+   rec.baseLot        = scaledLot;
    rec.hedged         = false;
    rec.hedgeTicket    = 0;
    rec.barTime        = barTime;
@@ -683,7 +698,8 @@ void OpenReversalNow(int dir, double point, double bid, double ask)
    }
 
    //--- Hedge lot
-   double rawHedgeLot = weightedLosing + BaseLotSize - totalWinningLot;
+   double scaledLot   = CalcScaledLot();
+   double rawHedgeLot = weightedLosing + scaledLot - totalWinningLot;
 
    if(rawHedgeLot > MaxLotSize)
    {
@@ -692,7 +708,7 @@ void OpenReversalNow(int dir, double point, double bid, double ask)
       return;
    }
 
-   double adjHedgeLot = NormalizeVolume(MathMax(rawHedgeLot, BaseLotSize));
+   double adjHedgeLot = NormalizeVolume(MathMax(rawHedgeLot, BaseLotSize));  // BaseLotSize = absolute min
 
    string revComment = TradeComment + "_" + TAG_REV;
    bool   okRev      = false;
@@ -760,7 +776,7 @@ void OpenReversalNow(int dir, double point, double bid, double ask)
    revRec.direction      = -dir;
    revRec.entryPrice     = revEntry;
    revRec.tpPoints       = tp_pts;
-   revRec.baseLot        = BaseLotSize;
+   revRec.baseLot        = scaledLot;
    revRec.hedged         = false;
    revRec.hedgeTicket    = 0;
    revRec.barTime        = TimeCurrent();
