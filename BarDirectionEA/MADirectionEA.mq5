@@ -640,12 +640,30 @@ void CheckEarlyProtection()
 }
 
 //+------------------------------------------------------------------+
+//| Returns true if any reversal (REV) position is currently open   |
+//+------------------------------------------------------------------+
+bool HasOpenReversal()
+{
+   int sz = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(!g_trades[i].isReversal) continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      return true;
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
 //| Per-tick MA-cross reversal check                                 |
 //| Fires immediately when live price crosses MA ± TpMinPoints/2    |
-//| Only triggers on unhedged positions to prevent re-entry          |
+//| Skipped entirely if a reversal is already open (one at a time)   |
 //+------------------------------------------------------------------+
 void CheckMAReversalOnTick()
 {
+   //--- Only one reversal open at a time; wait until it closes first
+   if(HasOpenReversal()) return;
+
    double maVal[];
    ArraySetAsSeries(maVal, true);
    if(CopyBuffer(g_maHandle, 0, 0, 1, maVal) < 1) return;
