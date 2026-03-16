@@ -660,9 +660,10 @@ bool HasOpenReversal()
 //| Fires ONCE per signal-direction change:                          |
 //|   signal = -1  →  bid clearly below MA-tolerance                |
 //|   signal = +1  →  ask clearly above MA+tolerance                |
-//|   signal =  0  →  price inside tolerance band (resets state)     |
-//| A reversal is skipped when the signal has not changed since the  |
-//| last reversal fired, or while a reversal position is still open  |
+//|   signal =  0  →  price inside tolerance band (no action)       |
+//| g_lastRevSignal is only updated when a reversal actually fires.  |
+//| Neutral band does NOT reset the state – same direction cannot    |
+//| re-fire until the opposite direction fires first.                |
 //+------------------------------------------------------------------+
 void CheckMAReversalOnTick()
 {
@@ -684,12 +685,8 @@ void CheckMAReversalOnTick()
    if     (bid < currentMA - tolPrice) curSignal = -1;   // clearly bearish
    else if(ask > currentMA + tolPrice) curSignal =  1;   // clearly bullish
 
-   //--- Price returned to neutral band → reset so next crossing fires fresh
-   if(curSignal == 0)
-   {
-      g_lastRevSignal = 0;
-      return;
-   }
+   //--- Price in neutral band or same signal → nothing to do
+   if(curSignal == 0) return;
 
    //--- Same signal as the last reversal → already handled, skip
    if(curSignal == g_lastRevSignal) return;
