@@ -10,8 +10,10 @@
 //|     move SL to entry + MinProfitPoints (locks in profit)         |
 //|  4. EA reset recovery: on init, scan open positions and rebuild  |
 //|     tracking state so hedging logic resumes correctly            |
-//|  5. Reversal: triggered when prev bar closes on opposite side of  |
-//|     MA from the open position (BUY reverses if close < MA, etc.) |
+//|  5. Reversal: triggered when prev bar closes clearly beyond MA    |
+//|     by at least TpMinPoints/2 in the opposite direction            |
+//|     If close is within MA ± TpMinPoints/2, direction is uncertain  |
+//|     → no reversal and no new entry                                 |
 //|  6. Dynamic TP = max(max bar H-L over DynTpBars, TpMinPoints)   |
 //|  7. Weekend filter: inhibit new trades / close open trades       |
 //|     N bars before weekend session end                            |
@@ -187,7 +189,9 @@ void OnTick()
    if(EnableEarlyProtection)
       CheckEarlyProtection();
 
-   //--- 3. New-bar logic (reversal check is now inside OnNewBar)
+   //--- 3. Per-tick reversal check (fires as soon as price crosses MA ± tolerance)
+   CheckMAReversalOnTick();
+
    //--- 4. New-bar logic
    datetime barTimes[];
    if(CopyTime(_Symbol, _Period, 0, 2, barTimes) < 2) return;
@@ -259,16 +263,23 @@ void OnNewBar(datetime closedBarTime)
 
    if(prevClose <= 0 || maOnPrev <= 0) return;
 
-   bool buySignal  = prevClose > maOnPrev;   // close above MA → buy
-   bool sellSignal = prevClose < maOnPrev;   // close below MA → sell
+   double point  = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
-   //--- MA-cross reversal check (fires before new entries)
-   CheckMAReversalOnBar(prevClose, maOnPrev);
+   double tolPrice = (TpMinPoints / 2.0) * point;   // uncertainty band around MA
+
+   bool buySignal  = prevClose > maOnPrev + tolPrice;  // clearly above MA
+   bool sellSignal = prevClose < maOnPrev - tolPrice;  // clearly below MA
+
+   if(!buySignal && !sellSignal)
+      Print("OnNewBar: price within MA tolerance band (",
+            MathAbs(prevClose - maOnPrev) / point, " pts < ", TpMinPoints/2,
+            " pts) – direction uncertain, no action.");
+
+   //--- MA-cross reversal is now handled per-tick in CheckMAReversalOnTick()
 
    double dynTp = CalcDynamicTP();
 
-   double point  = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
    if(buySignal)
    {
@@ -360,6 +371,24 @@ bool OpenOriginalTrade(ENUM_ORDER_TYPE type, double price, double tp,
    ArrayResize(g_trades, sz + 1);
    g_trades[sz] = rec;
    return true;
+}
+
+//+------------------------------------------------------------------+
+//| Count open UNHEDGED EA trades in a given direction               |
+//| Used by tick reversal to avoid re-firing after hedge is open     |
+//+------------------------------------------------------------------+
+int CountUnhedgedEATradesInDir(int dir)
+{
+   int count = 0;
+   int sz    = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(g_trades[i].direction != dir) continue;
+      if(g_trades[i].hedged)           continue;   // already reversed
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      count++;
+   }
+   return count;
 }
 
 //+------------------------------------------------------------------+
@@ -611,35 +640,35 @@ void CheckEarlyProtection()
 }
 
 //+------------------------------------------------------------------+
-//| Bar-close MA-cross reversal check                                |
-//| Called once per new bar; reverses all unhedged positions whose   |
-//| direction conflicts with the freshly closed bar's MA signal      |
+//| Per-tick MA-cross reversal check                                 |
+//| Fires immediately when live price crosses MA ± TpMinPoints/2    |
+//| Only triggers on unhedged positions to prevent re-entry          |
 //+------------------------------------------------------------------+
-void CheckMAReversalOnBar(double prevClose, double maOnPrev)
+void CheckMAReversalOnTick()
 {
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   double bid   = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double ask   = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double maVal[];
+   ArraySetAsSeries(maVal, true);
+   if(CopyBuffer(g_maHandle, 0, 0, 1, maVal) < 1) return;
 
-   //--- Determine which direction is now "against the MA"
-   //    close < MA  → BUY positions should reverse (price crossed below)
-   //    close > MA  → SELL positions should reverse (price crossed above)
-   bool reverseBuys  = (prevClose < maOnPrev);  // bar closed below MA
-   bool reverseSells = (prevClose > maOnPrev);  // bar closed above MA
+   double currentMA = maVal[0];
+   double point     = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   double bid       = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double ask       = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double tolPrice  = (TpMinPoints / 2.0) * point;
 
-   if(!reverseBuys && !reverseSells) return;    // doji on MA – no reversal
-
-   //--- Check if any unhedged same-direction trades exist
-   if(reverseBuys  && CountOpenEATradesInDir(1)  > 0)
+   //--- price clearly below MA → reverse unhedged BUY positions
+   if(bid < currentMA - tolPrice && CountUnhedgedEATradesInDir(1) > 0)
    {
-      Print("MA cross: bar closed below MA (", prevClose, " < ", maOnPrev,
-            "). Reversing open BUY trades.");
+      Print("Tick reversal: bid ", bid, " < MA-tol ", NormalizeDouble(currentMA - tolPrice, _Digits),
+            ". Reversing open BUY trades.");
       OpenReversalNow(1, point, bid, ask);
    }
-   if(reverseSells && CountOpenEATradesInDir(-1) > 0)
+
+   //--- price clearly above MA → reverse unhedged SELL positions
+   if(ask > currentMA + tolPrice && CountUnhedgedEATradesInDir(-1) > 0)
    {
-      Print("MA cross: bar closed above MA (", prevClose, " > ", maOnPrev,
-            "). Reversing open SELL trades.");
+      Print("Tick reversal: ask ", ask, " > MA+tol ", NormalizeDouble(currentMA + tolPrice, _Digits),
+            ". Reversing open SELL trades.");
       OpenReversalNow(-1, point, bid, ask);
    }
 }
