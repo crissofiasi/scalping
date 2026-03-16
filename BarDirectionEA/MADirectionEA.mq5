@@ -661,15 +661,12 @@ bool HasOpenReversal()
 //|   signal = -1  →  bid clearly below MA-tolerance                |
 //|   signal = +1  →  ask clearly above MA+tolerance                |
 //|   signal =  0  →  price inside tolerance band (no action)       |
-//| g_lastRevSignal is only updated when a reversal actually fires.  |
-//| Neutral band does NOT reset the state – same direction cannot    |
-//| re-fire until the opposite direction fires first.                |
+//| g_lastRevSignal tracks the last direction that fired.            |
+//| A reversal fires when curSignal != g_lastRevSignal               |
+//| (direction genuinely changed). Same-direction re-fires blocked.  |
 //+------------------------------------------------------------------+
 void CheckMAReversalOnTick()
 {
-   //--- Safety guard: never open a second reversal on top of an open one
-   if(HasOpenReversal()) return;
-
    double maVal[];
    ArraySetAsSeries(maVal, true);
    if(CopyBuffer(g_maHandle, 0, 0, 1, maVal) < 1) return;
