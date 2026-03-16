@@ -101,6 +101,7 @@ datetime g_lastBuyBar      = 0;
 datetime g_lastSellBar     = 0;
 int      g_cooloffBarsLeft = 0;
 int      g_maHandle        = INVALID_HANDLE;
+int      g_lastRevSignal   = 0;   // last MA signal that triggered a reversal: -1, 0, +1
 
 CTrade trade;
 
@@ -656,12 +657,16 @@ bool HasOpenReversal()
 
 //+------------------------------------------------------------------+
 //| Per-tick MA-cross reversal check                                 |
-//| Fires immediately when live price crosses MA ± TpMinPoints/2    |
-//| Skipped entirely if a reversal is already open (one at a time)   |
+//| Fires ONCE per signal-direction change:                          |
+//|   signal = -1  →  bid clearly below MA-tolerance                |
+//|   signal = +1  →  ask clearly above MA+tolerance                |
+//|   signal =  0  →  price inside tolerance band (resets state)     |
+//| A reversal is skipped when the signal has not changed since the  |
+//| last reversal fired, or while a reversal position is still open  |
 //+------------------------------------------------------------------+
 void CheckMAReversalOnTick()
 {
-   //--- Only one reversal open at a time; wait until it closes first
+   //--- Safety guard: never open a second reversal on top of an open one
    if(HasOpenReversal()) return;
 
    double maVal[];
@@ -674,20 +679,36 @@ void CheckMAReversalOnTick()
    double ask       = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    double tolPrice  = (TpMinPoints / 2.0) * point;
 
-   //--- price clearly below MA → reverse unhedged BUY positions
-   if(bid < currentMA - tolPrice && CountUnhedgedEATradesInDir(1) > 0)
+   //--- Determine current signal direction
+   int curSignal = 0;
+   if     (bid < currentMA - tolPrice) curSignal = -1;   // clearly bearish
+   else if(ask > currentMA + tolPrice) curSignal =  1;   // clearly bullish
+
+   //--- Price returned to neutral band → reset so next crossing fires fresh
+   if(curSignal == 0)
    {
-      Print("Tick reversal: bid ", bid, " < MA-tol ", NormalizeDouble(currentMA - tolPrice, _Digits),
-            ". Reversing open BUY trades.");
-      OpenReversalNow(1, point, bid, ask);
+      g_lastRevSignal = 0;
+      return;
    }
 
-   //--- price clearly above MA → reverse unhedged SELL positions
-   if(ask > currentMA + tolPrice && CountUnhedgedEATradesInDir(-1) > 0)
+   //--- Same signal as the last reversal → already handled, skip
+   if(curSignal == g_lastRevSignal) return;
+
+   //--- Signal changed → attempt reversal
+   if(curSignal == -1 && CountUnhedgedEATradesInDir(1) > 0)
+   {
+      Print("Tick reversal: bid ", bid, " < MA-tol ", NormalizeDouble(currentMA - tolPrice, _Digits),
+            ". Signal changed to -1. Reversing open BUY trades.");
+      OpenReversalNow(1, point, bid, ask);
+      g_lastRevSignal = curSignal;
+   }
+
+   if(curSignal == 1 && CountUnhedgedEATradesInDir(-1) > 0)
    {
       Print("Tick reversal: ask ", ask, " > MA+tol ", NormalizeDouble(currentMA + tolPrice, _Digits),
-            ". Reversing open SELL trades.");
+            ". Signal changed to +1. Reversing open SELL trades.");
       OpenReversalNow(-1, point, bid, ask);
+      g_lastRevSignal = curSignal;
    }
 }
 
