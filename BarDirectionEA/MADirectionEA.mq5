@@ -4,8 +4,8 @@
 //|                                                                  |
 //|  Strategy:                                                       |
 //|  1. MA-based entry: buy if prev bar closes above MA, sell below  |
-  |  2. Early close: on bar change, close profitable ORIG trades      |
-  |     (suppressed while any REV position is open)                  |
+//|  2. Early close: on bar change, close profitable ORIG trades      |
+//|     (suppressed while any REV position is open)                  |
 //|  3. Early protection: when price reaches EarlyTpPct% of TP,     |
 //|     move SL to entry + MinProfitPoints (locks in profit)         |
 //|  4. EA reset recovery: on init, scan open positions and rebuild  |
@@ -539,12 +539,14 @@ void CloseAllEATrades()
 void CheckEarlyProtection()
 {
    //--- Suppress while any reversal position is still open
-   int sz = ArraySize(g_trades);
-   for(int i = 0; i < sz; i++)
    {
-      if(!g_trades[i].isReversal) continue;
-      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
-      return;   // reversal active – leave all SLs untouched
+      int szRev = ArraySize(g_trades);
+      for(int j = 0; j < szRev; j++)
+      {
+         if(!g_trades[j].isReversal) continue;
+         if(!PositionSelectByTicket(g_trades[j].ticket)) continue;
+         return;   // reversal active – leave all SLs untouched
+      }
    }
 
    double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
@@ -552,7 +554,7 @@ void CheckEarlyProtection()
    double ask   = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
-   sz = ArraySize(g_trades);
+   int sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
       if(g_trades[i].earlyProtected)    continue;
@@ -651,11 +653,16 @@ void OpenReversalNow(int dir, double point, double bid, double ask)
       revTP    = NormalizeDouble(revEntry + tp_pts * point, digits);
    }
 
-   //--- Sum lots; compute weighted hedge need from actual per-trade distances
-   //    Formula derivation: at revTP the hedge earns hedgeLot * tp_pts * ptVal;
-   //    each losing trade i loses tradeLot_i * (dist_i + tp_pts) * ptVal
-   //    where dist_i = |entry_i - revEntry| / point.
-   //    Solve for hedgeLot = sum(tradeLot_i*(tp_pts+dist_i)/tp_pts) + BaseLot - winLot
+   //--- Sum lots; compute weighted hedge need from actual per-trade distances.
+   //    At revTP the hedge earns hedgeLot * tp_pts * ptVal.
+   //    Each same-direction trade i has a signed distance:
+   //      signedDist_i = dir * (entry_i - revEntry) / point
+   //    > 0  → position is losing at revEntry and loses MORE at revTP
+   //    < 0  → position is already winning at revEntry (still loses less or profits at revTP)
+   //    Loss (in points) for trade i when price hits revTP:
+   //      lossPts_i = tp_pts + signedDist_i
+   //    (can be negative for deeply winning positions → they fund part of the hedge)
+   //    Solve: hedgeLot = sum(vol_i * lossPts_i / tp_pts) + BaseLot - totalWinningLot
    double weightedLosing  = 0.0;
    double totalWinningLot = 0.0;
    int sz = ArraySize(g_trades);
@@ -665,8 +672,11 @@ void OpenReversalNow(int dir, double point, double bid, double ask)
       double vol = PositionGetDouble(POSITION_VOLUME);
       if(g_trades[i].direction == dir)
       {
-         double dist = MathAbs(g_trades[i].entryPrice - revEntry) / point;
-         weightedLosing += vol * (tp_pts + dist) / tp_pts;
+         //--- signed: positive when position is losing (needs coverage)
+         //           negative when position profits at revTP (reduces hedge need)
+         double signedDist = dir * (g_trades[i].entryPrice - revEntry) / point;
+         double lossPts    = tp_pts + signedDist;
+         weightedLosing   += vol * lossPts / tp_pts;
       }
       else
          totalWinningLot += vol;
@@ -704,22 +714,44 @@ void OpenReversalNow(int dir, double point, double bid, double ask)
          "  Lot: ", adjHedgeLot,
          "  WeightedLosing: ", weightedLosing, "  WinningLot: ", totalWinningLot);
 
-   //--- Move SL of all losing-side positions to hedge TP; mark hedged
+   //--- Move SL of all losing-side positions to revTP and CLEAR their TP (set to 0).
+   //    Removing the individual TPs prevents any single position from closing early
+   //    (partial closure) before the reversal reaches its TP.  All grouped positions
+   //    will now exit together when the SL price (= revTP) is reached.
    sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
       if(g_trades[i].direction != dir) continue;
       if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
 
-      double existingTP = PositionGetDouble(POSITION_TP);
-      if(!trade.PositionModify(g_trades[i].ticket, revTP, existingTP))
-         Print("Modify SL failed for ticket ", g_trades[i].ticket,
+      //--- SL = revTP  |  TP = 0 (disabled – position exits only via SL)
+      if(!trade.PositionModify(g_trades[i].ticket, revTP, 0))
+         Print("Modify SL/TP failed for ticket ", g_trades[i].ticket,
                ": ", trade.ResultRetcode());
       else
-         Print("SL moved to ", revTP, " for ticket ", g_trades[i].ticket);
+         Print("SL set to ", revTP, ", TP cleared for ticket ", g_trades[i].ticket);
 
       g_trades[i].hedged      = true;
       g_trades[i].hedgeTicket = revTicket;
+   }
+
+   //--- Set TP = revTP on all opposite-direction open positions.
+   //    They are "winning" at current price but must close together with the
+   //    reversal group at revTP – not float indefinitely with TP=0 or an old TP.
+   sz = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(g_trades[i].direction == dir)  continue;   // same-dir already handled above
+      if(g_trades[i].ticket == revTicket) continue; // skip the reversal just opened
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+
+      double existingSL = PositionGetDouble(POSITION_SL);
+      if(!trade.PositionModify(g_trades[i].ticket, existingSL, revTP))
+         Print("Modify opp-dir TP failed for ticket ", g_trades[i].ticket,
+               ": ", trade.ResultRetcode());
+      else
+         Print("Opp-dir ticket ", g_trades[i].ticket,
+               " TP set to ", revTP, " (same as reversal TP)");
    }
 
    //--- Add new hedge to tracking (unhedged so it can trigger next level)
