@@ -35,6 +35,7 @@ input int    NRTR_Lookback   = 200;   // History bars to initialize NRTR state
 
 input group "=== Trade Settings ==="
 input double BaseLotSize     = 0.01;  // Base lot size
+input double BaseEquity      = 0.0;   // Base equity for linear lot scaling (0=off)
 input double TpMinPoints     = 200.0; // Minimum TP (points) – floor for dynamic TP
 input long   MagicNumber     = 88881; // Magic number
 input int    Slippage        = 50;    // Slippage in points
@@ -437,9 +438,10 @@ bool OpenTrade(ENUM_ORDER_TYPE type, double price, double sl, double tp,
                double tpPts, datetime barTime, string tag)
 {
    string comment = TradeComment + "_" + tag;
+   double baseLot = GetBaseLot();
    bool ok = (type == ORDER_TYPE_BUY)
-             ? trade.Buy (BaseLotSize, _Symbol, price, sl, tp, comment)
-             : trade.Sell(BaseLotSize, _Symbol, price, sl, tp, comment);
+             ? trade.Buy (baseLot, _Symbol, price, sl, tp, comment)
+             : trade.Sell(baseLot, _Symbol, price, sl, tp, comment);
 
    if(!ok)
    {
@@ -455,7 +457,7 @@ bool OpenTrade(ENUM_ORDER_TYPE type, double price, double sl, double tp,
    rec.direction      = (type == ORDER_TYPE_BUY) ? 1 : -1;
    rec.entryPrice     = price;
    rec.tpPoints       = tpPts;
-   rec.baseLot        = BaseLotSize;
+   rec.baseLot        = baseLot;
    rec.hedged         = false;
    rec.hedgeTicket    = 0;
    rec.barTime        = barTime;
@@ -508,8 +510,9 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
                         ? tickVal / tickSz * point : 0.0;
 
    double rawVol = BaseLotSize;
+   double baseLot = GetBaseLot();
    if(ptValPerLot > 0.0 && floatingLoss < 0.0)
-      rawVol = MathAbs(floatingLoss) / (dynTp * ptValPerLot) + BaseLotSize;
+      rawVol = MathAbs(floatingLoss) / (dynTp * ptValPerLot) + baseLot;
 
    if(rawVol > MaxLotSize)
    {
@@ -518,7 +521,7 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
       return;
    }
 
-   double adjVol = NormalizeVolume(MathMax(rawVol, BaseLotSize));
+   double adjVol = NormalizeVolume(MathMax(rawVol, baseLot));
 
    double tp = (dir == 1)
                ? NormalizeDouble(execPrice + dynTp * point, digits)
@@ -544,7 +547,7 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
    rec.direction      = dir;
    rec.entryPrice     = execPrice;
    rec.tpPoints       = dynTp;
-   rec.baseLot        = BaseLotSize;
+   rec.baseLot        = baseLot;
    rec.hedged         = false;
    rec.hedgeTicket    = 0;
    rec.barTime        = barTime;
@@ -951,6 +954,19 @@ double NormalizeVolume(double vol)
    vol = MathMax(vol, minVol);
    vol = MathMin(vol, MathMin(maxVol, MaxLotSize));
    return NormalizeDouble(vol, 2);
+}
+
+//+------------------------------------------------------------------+
+//| Get base lot scaled by equity                                   |
+//+------------------------------------------------------------------+
+double GetBaseLot()
+{
+   if(BaseEquity <= 0.0) return BaseLotSize;
+
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(equity <= BaseEquity) return BaseLotSize;
+
+   return BaseLotSize * (equity / BaseEquity);
 }
 
 //+------------------------------------------------------------------+
