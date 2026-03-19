@@ -961,12 +961,12 @@ double NormalizeVolume(double vol)
 //+------------------------------------------------------------------+
 double GetBaseLot()
 {
-   if(BaseEquity <= 0.0) return BaseLotSize;
+   if(BaseEquity <= 0.0) return NormalizeVolume(BaseLotSize);
 
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
-   if(equity <= BaseEquity) return BaseLotSize;
+   if(equity <= BaseEquity) return NormalizeVolume(BaseLotSize);
 
-   return BaseLotSize * (equity / BaseEquity);
+   return NormalizeVolume(BaseLotSize * (equity / BaseEquity));
 }
 
 //+------------------------------------------------------------------+
