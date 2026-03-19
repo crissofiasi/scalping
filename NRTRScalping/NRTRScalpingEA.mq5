@@ -47,19 +47,9 @@ input int    DynTpBars       = 10;    // Lookback bars for dynamic TP
 input group "=== Early Close & Protection ==="
 input bool   EnableEarlyClose      = true;  // Close profitable trades on bar change
 input bool   EnableEarlyProtection = true;  // Move SL to lock min profit when near TP
-input bool   EnableScaleIn         = true;  // Scale-in on same-dir NRTR advance
+input bool   EnableScaleIn         = true;  // Scale-in on same-dir NRTR flip
 input double EarlyTpPct      = 50.0;  // SL-lock activates at X% of TP distance
 input double MinProfitPoints = 20.0;  // Protective SL offset / scale-in gap (points)
-input int    EarlyCloseMinBars = 1;   // Minimum closed bars from entry before early close
-
-input group "=== NRTR Advance Entries ==="
-input bool   EnableAdvanceEntries   = true; // Allow entries on NRTR advances
-input double RatchetTolerancePoints = 0.0;  // SL offset from ratchet (points)
-
-input group "=== Lower TF Early Close ==="
-input bool             EnableLowerTFEarlyClose = true;     // Gate early close by lower TF flip
-input ENUM_TIMEFRAMES  LowerTF                 = PERIOD_M1; // Lower timeframe
-input int              LowerTFShift            = 0;         // 0=current bar, 1=closed bar
 
 input group "=== Risk Settings ==="
 input double MaxLotSize       = 50.0; // Max lot size cap
@@ -84,7 +74,6 @@ input bool H20=true;  input bool H21=true;  input bool H22=true;  input bool H23
 #define TAG_ORIG "ORIG"
 #define TAG_REV  "REV"
 #define TAG_AVG  "AVG"
-#define TAG_ADV  "ADV"
 
 //--- NRTR state
 struct NRTRState
@@ -126,31 +115,14 @@ CTrade trade;
 //+------------------------------------------------------------------+
 double CalcATR(int barIdx)
 {
-   return CalcATR_TF(_Period, barIdx);
-}
-
-//+------------------------------------------------------------------+
-//| Run the NRTR state machine from NRTR_Lookback bars back          |
-//| to barIdx and return the state AT barIdx                         |
-//+------------------------------------------------------------------+
-NRTRState CalcNRTRAtBar(int barIdx)
-{
-   return CalcNRTRAtBar_TF(_Period, barIdx);
-}
-
-//+------------------------------------------------------------------+
-//| Compute ATR (Wilder) on a specific timeframe                    |
-//+------------------------------------------------------------------+
-double CalcATR_TF(ENUM_TIMEFRAMES tf, int barIdx)
-{
    double sum = 0.0;
    int    per = NRTR_ATRPeriod;
 
    for(int i = barIdx; i < barIdx + per; i++)
    {
-      double hi   = iHigh (_Symbol, tf, i);
-      double lo   = iLow  (_Symbol, tf, i);
-      double prvc = iClose(_Symbol, tf, i + 1);
+      double hi   = iHigh (_Symbol, _Period, i);
+      double lo   = iLow  (_Symbol, _Period, i);
+      double prvc = iClose(_Symbol, _Period, i + 1);
       if(hi <= 0 || lo <= 0 || prvc <= 0) continue;
 
       double tr = MathMax(hi - lo,
@@ -161,25 +133,26 @@ double CalcATR_TF(ENUM_TIMEFRAMES tf, int barIdx)
 }
 
 //+------------------------------------------------------------------+
-//| Run NRTR state machine on a specific timeframe                  |
+//| Run the NRTR state machine from NRTR_Lookback bars back          |
+//| to barIdx and return the state AT barIdx                         |
 //+------------------------------------------------------------------+
-NRTRState CalcNRTRAtBar_TF(ENUM_TIMEFRAMES tf, int barIdx)
+NRTRState CalcNRTRAtBar(int barIdx)
 {
    int startBar = barIdx + NRTR_Lookback - 1;
 
    //--- Seed with state at the oldest bar (assume uptrend start)
    NRTRState s;
    s.direction = 1;
-   double initClose = iClose(_Symbol, tf, startBar);
-   double initATR   = CalcATR_TF(tf, startBar);
+   double initClose = iClose(_Symbol, _Period, startBar);
+   double initATR   = CalcATR(startBar);
    s.extreme = initClose;
    s.level   = initClose - NRTR_K * initATR;
 
    //--- Walk forward bar by bar from startBar-1 down to barIdx
    for(int b = startBar - 1; b >= barIdx; b--)
    {
-      double cl  = iClose(_Symbol, tf, b);
-      double atr = CalcATR_TF(tf, b);
+      double cl  = iClose(_Symbol, _Period, b);
+      double atr = CalcATR(b);
       double ratchetDist = NRTR_K * atr;
 
       if(s.direction == 1)   // uptrend
@@ -337,8 +310,8 @@ void OnNewBar(datetime closedBarTime)
    bool flipUp   = (s1.direction ==  1 && s2.direction == -1);  // downtrend → uptrend
    bool flipDown = (s1.direction == -1 && s2.direction ==  1);  // uptrend → downtrend
 
-   bool advanceUp   = (s1.direction ==  1 && s2.direction ==  1 && s1.extreme > s2.extreme);
-   bool advanceDown = (s1.direction == -1 && s2.direction == -1 && s1.extreme < s2.extreme);
+   //--- NRTR-cross reversal: check before new entries
+   CheckNRTRReversal(s1.direction, s1.level);
 
    double dynTp  = CalcDynamicTP();
    double point  = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
@@ -356,27 +329,9 @@ void OnNewBar(datetime closedBarTime)
          if(openBuys == 0)
          {
             double tp = NormalizeDouble(ask + dynTp * point, digits);
-            double sl = NormalizeDouble(CalcRatchetSL(1, s1.level), digits);
+            double sl = NormalizeDouble(s1.level, digits);   // ratchet = natural SL
             if(OpenTrade(ORDER_TYPE_BUY, ask, sl, tp, dynTp, closedBarTime, TAG_ORIG))
                Print("NRTR BUY entered. Entry:", ask, " SL:", sl, " TP:", tp,
-                     " RatchetLevel:", s1.level, " DynTpPts:", dynTp);
-         }
-      }
-   }
-   else if(EnableAdvanceEntries && advanceUp)
-   {
-      if(!OneTradePerBar || g_lastBuyBar != closedBarTime)
-      {
-         g_lastBuyBar = closedBarTime;
-         double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-         int    openBuys = CountOpenEATradesInDir(1);
-
-         if(openBuys == 0)
-         {
-            double tp = NormalizeDouble(ask + dynTp * point, digits);
-            double sl = NormalizeDouble(CalcRatchetSL(1, s1.level), digits);
-            if(OpenTrade(ORDER_TYPE_BUY, ask, sl, tp, dynTp, closedBarTime, TAG_ADV))
-               Print("NRTR BUY advance entry. Entry:", ask, " SL:", sl, " TP:", tp,
                      " RatchetLevel:", s1.level, " DynTpPts:", dynTp);
          }
          else if(EnableScaleIn)
@@ -398,27 +353,9 @@ void OnNewBar(datetime closedBarTime)
          if(openSells == 0)
          {
             double tp = NormalizeDouble(bid - dynTp * point, digits);
-            double sl = NormalizeDouble(CalcRatchetSL(-1, s1.level), digits);
+            double sl = NormalizeDouble(s1.level, digits);
             if(OpenTrade(ORDER_TYPE_SELL, bid, sl, tp, dynTp, closedBarTime, TAG_ORIG))
                Print("NRTR SELL entered. Entry:", bid, " SL:", sl, " TP:", tp,
-                     " RatchetLevel:", s1.level, " DynTpPts:", dynTp);
-         }
-      }
-   }
-   else if(EnableAdvanceEntries && advanceDown)
-   {
-      if(!OneTradePerBar || g_lastSellBar != closedBarTime)
-      {
-         g_lastSellBar = closedBarTime;
-         double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         int    openSells = CountOpenEATradesInDir(-1);
-
-         if(openSells == 0)
-         {
-            double tp = NormalizeDouble(bid - dynTp * point, digits);
-            double sl = NormalizeDouble(CalcRatchetSL(-1, s1.level), digits);
-            if(OpenTrade(ORDER_TYPE_SELL, bid, sl, tp, dynTp, closedBarTime, TAG_ADV))
-               Print("NRTR SELL advance entry. Entry:", bid, " SL:", sl, " TP:", tp,
                      " RatchetLevel:", s1.level, " DynTpPts:", dynTp);
          }
          else if(EnableScaleIn)
@@ -429,6 +366,28 @@ void OnNewBar(datetime closedBarTime)
    }
 }
 
+//+------------------------------------------------------------------+
+//| NRTR reversal: when NRTR direction conflicts with open positions |
+//|  NRTR uptrend  → reverse any open unhedged SELL trades          |
+//|  NRTR downtrend→ reverse any open unhedged BUY  trades          |
+//+------------------------------------------------------------------+
+void CheckNRTRReversal(int nrtrDir, double ratchetLevel)
+{
+   //--- Positions whose direction is OPPOSITE to current NRTR should be reversed
+   int conflictDir = -nrtrDir;   // e.g. nrtr=up(1) → conflict=SELL(-1)
+
+   if(CountOpenEATradesInDir_Unhedged(conflictDir) == 0) return;
+
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   double bid   = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double ask   = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+
+   Print("NRTR reversal: current direction ", nrtrDir,
+         " conflicts with open ", (conflictDir == 1 ? "BUY" : "SELL"),
+         " trades. Reversing.");
+
+   OpenReversalNow(conflictDir, point, bid, ask);
+}
 
 //+------------------------------------------------------------------+
 //| Open a trade (original, scale-in, or reversal) with full SL/TP  |
@@ -492,6 +451,16 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
 
    if(nearestEntry < 0.0) return;
 
+   //--- Gate: price must be at least MinProfitPoints adverse from nearest entry
+   bool condOk = (dir == 1) ? (execPrice <= nearestEntry - MinProfitPoints * point)
+                             : (execPrice >= nearestEntry + MinProfitPoints * point);
+   if(!condOk)
+   {
+      Print("ScaleIn skipped: gap ", minDist / point,
+            " pts < MinProfitPoints ", MinProfitPoints);
+      return;
+   }
+
    //--- Floating loss of all open same-dir trades
    double floatingLoss = 0.0;
    for(int i = 0; i < sz; i++)
@@ -523,7 +492,7 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
    double tp = (dir == 1)
                ? NormalizeDouble(execPrice + dynTp * point, digits)
                : NormalizeDouble(execPrice - dynTp * point, digits);
-   double sl = NormalizeDouble(CalcRatchetSL(dir, ratchetLevel), digits);
+   double sl = NormalizeDouble(ratchetLevel, digits);
 
    string comment = TradeComment + "_" + TAG_AVG;
    bool ok = (dir == 1)
@@ -560,73 +529,112 @@ void TryScaleIn(int dir, double execPrice, double dynTp,
          " Ticket:", posTicket, " Entry:", execPrice,
          " SL:", sl, " TP:", tp, " Lot:", adjVol,
          " FloatLoss:", floatingLoss, " NearestEntry:", nearestEntry);
-
-   UpdateTPForDirection(dir, tp);
-   UpdateSLToRatchet(dir, ratchetLevel);
 }
 
 //+------------------------------------------------------------------+
-//| Update TP for same-dir trades to a common level                 |
+//| Open hedging reversal; lot sized from actual per-trade distances |
+//| dir: direction of LOSING (conflicting) positions                  |
 //+------------------------------------------------------------------+
-void UpdateTPForDirection(int dir, double tpPrice)
+void OpenReversalNow(int dir, double point, double bid, double ask)
 {
-   int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-   double newTP = NormalizeDouble(tpPrice, digits);
-
-   int sz = ArraySize(g_trades);
-   for(int i = 0; i < sz; i++)
-   {
-      if(g_trades[i].direction != dir)                continue;
-      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
-
-      double existingSL = PositionGetDouble(POSITION_SL);
-      double currentTP  = PositionGetDouble(POSITION_TP);
-      if(MathAbs(currentTP - newTP) <= SymbolInfoDouble(_Symbol, SYMBOL_POINT))
-         continue;
-
-      if(!trade.PositionModify(g_trades[i].ticket, existingSL, newTP))
-         Print("TP update failed ticket ", g_trades[i].ticket,
-               ": ", trade.ResultRetcode());
-   }
-}
-
-//+------------------------------------------------------------------+
-//| Compute SL from ratchet level with tolerance                    |
-//+------------------------------------------------------------------+
-double CalcRatchetSL(int dir, double ratchetLevel)
-{
-   double point  = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   double offset = RatchetTolerancePoints * point;
-   return (dir == 1) ? (ratchetLevel - offset) : (ratchetLevel + offset);
-}
-
-//+------------------------------------------------------------------+
-//| Update SL for same-dir trades to ratchet ± tolerance            |
-//+------------------------------------------------------------------+
-void UpdateSLToRatchet(int dir, double ratchetLevel)
-{
+   double tp_pts = CalcDynamicTP();
    int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-   double newSL  = NormalizeDouble(CalcRatchetSL(dir, ratchetLevel), digits);
 
+   double revEntry, revTP;
+   if(dir == 1)   // reversing BUYs → open SELL hedge
+   {
+      revEntry = bid;
+      revTP    = NormalizeDouble(revEntry - tp_pts * point, digits);
+   }
+   else           // reversing SELLs → open BUY hedge
+   {
+      revEntry = ask;
+      revTP    = NormalizeDouble(revEntry + tp_pts * point, digits);
+   }
+
+   //--- Weighted lot: each losing trade contributes vol*(tp+dist)/tp
+   double weightedLosing  = 0.0;
+   double totalWinningLot = 0.0;
    int sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
-      if(g_trades[i].direction != dir)                continue;
-      if(g_trades[i].hedged)                          continue;
       if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
+      double vol = PositionGetDouble(POSITION_VOLUME);
+      if(g_trades[i].direction == dir)
+      {
+         double dist = MathAbs(g_trades[i].entryPrice - revEntry) / point;
+         weightedLosing += vol * (tp_pts + dist) / tp_pts;
+      }
+      else
+         totalWinningLot += vol;
+   }
 
-      double currentSL = PositionGetDouble(POSITION_SL);
-      bool better = (dir == 1) ? (currentSL <= 0.0 || newSL > currentSL)
-                               : (currentSL <= 0.0 || newSL < currentSL);
-      if(!better) continue;
+   double rawHedgeLot = weightedLosing + BaseLotSize - totalWinningLot;
+
+   if(rawHedgeLot > MaxLotSize)
+   {
+      Print("HEDGING STOPPED: required lot ", rawHedgeLot,
+            " > MaxLotSize ", MaxLotSize, ". Positions float to TP/SL.");
+      return;
+   }
+
+   double adjHedgeLot = NormalizeVolume(MathMax(rawHedgeLot, BaseLotSize));
+
+   string revComment = TradeComment + "_" + TAG_REV;
+   bool   okRev = (dir == 1)
+                  ? trade.Sell(adjHedgeLot, _Symbol, revEntry, 0, revTP, revComment)
+                  : trade.Buy (adjHedgeLot, _Symbol, revEntry, 0, revTP, revComment);
+
+   if(!okRev)
+   {
+      Print("Reversal order failed: ", trade.ResultRetcode(),
+            " – ", trade.ResultRetcodeDescription());
+      return;
+   }
+
+   ulong revTicket = GetPositionTicketByOrder(trade.ResultOrder());
+   Print("Reversal opened. Ticket:", revTicket,
+         " Entry:", revEntry, " TP:", revTP,
+         " Lot:", adjHedgeLot,
+         " WeightedLosing:", weightedLosing,
+         " WinningLot:", totalWinningLot);
+
+   //--- Move SL of all conflicting positions to hedge TP; mark hedged
+   sz = ArraySize(g_trades);
+   for(int i = 0; i < sz; i++)
+   {
+      if(g_trades[i].direction != dir) continue;
+      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
 
       double existingTP = PositionGetDouble(POSITION_TP);
-      if(!trade.PositionModify(g_trades[i].ticket, newSL, existingTP))
-         Print("Ratchet SL update failed ticket ", g_trades[i].ticket,
+      if(!trade.PositionModify(g_trades[i].ticket, revTP, existingTP))
+         Print("Modify SL failed ticket ", g_trades[i].ticket,
                ": ", trade.ResultRetcode());
-   }
-}
+      else
+         Print("SL moved to ", revTP, " for ticket ", g_trades[i].ticket);
 
+      g_trades[i].hedged      = true;
+      g_trades[i].hedgeTicket = revTicket;
+   }
+
+   //--- Track the new hedge (starts unhedged so it can trigger next level)
+   TradeRec revRec;
+   revRec.ticket         = revTicket;
+   revRec.direction      = -dir;
+   revRec.entryPrice     = revEntry;
+   revRec.tpPoints       = tp_pts;
+   revRec.baseLot        = BaseLotSize;
+   revRec.hedged         = false;
+   revRec.hedgeTicket    = 0;
+   revRec.barTime        = TimeCurrent();
+   revRec.isReversal     = true;
+   revRec.isScaleIn      = false;
+   revRec.earlyProtected = false;
+
+   sz = ArraySize(g_trades);
+   ArrayResize(g_trades, sz + 1);
+   g_trades[sz] = revRec;
+}
 
 //+------------------------------------------------------------------+
 //| Early close: close EA trades with positive P&L on bar change     |
@@ -641,9 +649,6 @@ void CloseAllProfitableTrades()
       if(PositionGetInteger(POSITION_MAGIC) != MagicNumber) continue;
       if(PositionGetString(POSITION_SYMBOL) != _Symbol)     continue;
 
-   if(!HasMinClosedBarsSinceEntry(t))                    continue;
-   if(!IsEarlyCloseAllowedByLowerTF(t))                  continue;
-
       double profit = PositionGetDouble(POSITION_PROFIT)
                     + PositionGetDouble(POSITION_SWAP);
       if(profit > 0.0)
@@ -654,41 +659,6 @@ void CloseAllProfitableTrades()
             Print("EarlyClose: ticket ", t, " profit ", profit);
       }
    }
-}
-
-//+------------------------------------------------------------------+
-//| Check minimum closed bars since entry                           |
-//+------------------------------------------------------------------+
-bool HasMinClosedBarsSinceEntry(ulong ticket)
-{
-   if(EarlyCloseMinBars <= 0) return true;
-   if(!PositionSelectByTicket(ticket)) return false;
-
-   datetime entryTime = (datetime)PositionGetInteger(POSITION_TIME);
-   int shift = iBarShift(_Symbol, _Period, entryTime, true);
-   if(shift < 0) return false;
-
-   return (shift >= EarlyCloseMinBars);
-}
-
-//+------------------------------------------------------------------+
-//| Gate early close using lower TF flips                           |
-//+------------------------------------------------------------------+
-bool IsEarlyCloseAllowedByLowerTF(ulong ticket)
-{
-   if(!EnableLowerTFEarlyClose) return true;
-   if(!PositionSelectByTicket(ticket)) return false;
-
-   int dir = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? 1 : -1;
-
-   NRTRState s1 = CalcNRTRAtBar_TF(LowerTF, LowerTFShift);
-   NRTRState s2 = CalcNRTRAtBar_TF(LowerTF, LowerTFShift + 1);
-
-   bool flipUp   = (s1.direction ==  1 && s2.direction == -1);
-   bool flipDown = (s1.direction == -1 && s2.direction ==  1);
-
-   if(dir == 1) return flipDown;
-   return flipUp;
 }
 
 //+------------------------------------------------------------------+
@@ -720,9 +690,6 @@ void CheckEarlyProtection()
    double ask    = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
-   bool blockBuy  = IsGroupProfitableAtSL(1);
-   bool blockSell = IsGroupProfitableAtSL(-1);
-
    int sz = ArraySize(g_trades);
    for(int i = 0; i < sz; i++)
    {
@@ -733,8 +700,6 @@ void CheckEarlyProtection()
       int    dir      = g_trades[i].direction;
       double tpPts    = g_trades[i].tpPoints;
       double threshold = tpPts * EarlyTpPct / 100.0;
-
-      if((dir == 1 && blockBuy) || (dir == -1 && blockSell)) continue;
 
       bool triggered = (dir == 1) ? (bid >= entry + threshold * point)
                                   : (ask <= entry - threshold * point);
@@ -755,40 +720,6 @@ void CheckEarlyProtection()
                " ticket ", g_trades[i].ticket);
       }
    }
-}
-
-//+------------------------------------------------------------------+
-//| True if total P/L at current SL is positive (same direction)    |
-//+------------------------------------------------------------------+
-bool IsGroupProfitableAtSL(int dir)
-{
-   double point  = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-   double tickVal = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
-   double tickSz  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-   if(point <= 0.0 || tickVal <= 0.0 || tickSz <= 0.0) return false;
-
-   double ptValPerLot = tickVal / tickSz * point;
-   double total = 0.0;
-   bool   any   = false;
-
-   int sz = ArraySize(g_trades);
-   for(int i = 0; i < sz; i++)
-   {
-      if(g_trades[i].direction != dir)                continue;
-      if(!PositionSelectByTicket(g_trades[i].ticket)) continue;
-
-      double sl = PositionGetDouble(POSITION_SL);
-      if(sl <= 0.0) return false;
-
-      double entry = PositionGetDouble(POSITION_PRICE_OPEN);
-      double vol   = PositionGetDouble(POSITION_VOLUME);
-      double diffPts = (dir == 1) ? (sl - entry) / point
-                                  : (entry - sl) / point;
-      total += diffPts * ptValPerLot * vol;
-      any = true;
-   }
-
-   return (any && total > 0.0);
 }
 
 //+------------------------------------------------------------------+
